@@ -20,6 +20,10 @@ import { ErrorState } from "@/components/ErrorState";
 import { FieldInput } from "@/components/FieldInput";
 import { LoadingState } from "@/components/LoadingState";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
+import {
+  BASEROW_TABLE_EVENT_TYPES,
+  useBaserowRealtime,
+} from "@/hooks/useBaserowRealtime";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
@@ -67,6 +71,25 @@ export default function EditRowScreen() {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  useBaserowRealtime(
+    creds,
+    Number.isFinite(tableId) && Number.isFinite(rowId)
+      ? { page: "row", tableId, rowId }
+      : null,
+    (message) => {
+      if (!message.type || !BASEROW_TABLE_EVENT_TYPES.has(message.type)) return;
+      queryClient.invalidateQueries({
+        queryKey: ["fields", creds.baseUrl, tableId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["rows", creds.baseUrl, tableId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["row", creds.baseUrl, tableId, rowId],
+      });
+    },
+  );
 
   useEffect(() => {
     if (rowQuery.data && fields.length > 0) {
