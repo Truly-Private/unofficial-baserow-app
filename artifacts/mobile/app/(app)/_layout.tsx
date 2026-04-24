@@ -26,6 +26,7 @@ export default function AppLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Workspaces" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
+      <Stack.Screen name="database/[id]" options={{ title: "Database" }} />
       <Stack.Screen name="table/[id]" options={{ title: "Table" }} />
       <Stack.Screen
         name="row/[tableId]/[rowId]"

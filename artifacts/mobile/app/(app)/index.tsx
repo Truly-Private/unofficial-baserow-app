@@ -20,8 +20,6 @@ import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import { listApplications, type BaserowApplication } from "@/lib/baserow";
 
-
-
 type WorkspaceGroup = {
   id: number;
   name: string;
@@ -136,95 +134,74 @@ export default function WorkspacesScreen() {
                   },
                 ]}
               >
-                {group.applications.map((app, appIdx) => (
-                  <View key={app.id}>
-                    {appIdx > 0 ? (
+                {group.applications.map((app, idx) => {
+                  const tableCount = app.tables?.length ?? 0;
+                  return (
+                    <Pressable
+                      key={app.id}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(app)/database/[id]",
+                          params: {
+                            id: String(app.id),
+                            name: app.name,
+                          },
+                        })
+                      }
+                      style={({ pressed }) => [
+                        styles.dbRow,
+                        {
+                          backgroundColor: pressed
+                            ? colors.surface
+                            : "transparent",
+                          borderTopColor: colors.border,
+                          borderTopWidth: idx === 0 ? 0 : 1,
+                        },
+                      ]}
+                    >
                       <View
-                        style={[styles.divider, { backgroundColor: colors.border }]}
-                      />
-                    ) : null}
-                    <View style={styles.dbHeader}>
-                      <Feather
-                        name="database"
-                        size={14}
-                        color={colors.mutedForeground}
-                      />
-                      <Text
-                        style={[styles.dbName, { color: colors.foreground }]}
+                        style={[
+                          styles.dbIcon,
+                          {
+                            backgroundColor: colors.muted,
+                            borderColor: colors.border,
+                          },
+                        ]}
                       >
-                        {app.name}
-                      </Text>
-                    </View>
-
-                    {(app.tables ?? []).length === 0 ? (
-                      <View style={styles.emptyTables}>
+                        <Feather
+                          name="database"
+                          size={16}
+                          color={colors.mutedForeground}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[styles.dbName, { color: colors.foreground }]}
+                          numberOfLines={1}
+                        >
+                          {app.name}
+                        </Text>
                         <Text
                           style={[
-                            styles.emptyTablesText,
+                            styles.dbHint,
                             { color: colors.mutedForeground },
                           ]}
                         >
-                          No tables in this database.
+                          {tableCount === 0
+                            ? "No tables"
+                            : tableCount === 1
+                              ? "1 table"
+                              : `${tableCount} tables`}
                         </Text>
                       </View>
-                    ) : (
-                      (app.tables ?? [])
-                        .slice()
-                        .sort((a, b) => a.order - b.order)
-                        .map((table, tIdx, arr) => (
-                          <Pressable
-                            key={table.id}
-                            onPress={() =>
-                              router.push({
-                                pathname: "/(app)/table/[id]",
-                                params: {
-                                  id: String(table.id),
-                                  name: table.name,
-                                  database: app.name,
-                                },
-                              })
-                            }
-                            style={({ pressed }) => [
-                              styles.tableRow,
-                              {
-                                backgroundColor: pressed
-                                  ? colors.surface
-                                  : "transparent",
-                                borderTopColor: colors.border,
-                                borderTopWidth: tIdx === 0 ? 0 : 1,
-                              },
-                            ]}
-                          >
-                            <View style={styles.tableRowText}>
-                              <Text
-                                style={[
-                                  styles.tableName,
-                                  { color: colors.foreground },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {table.name}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.tableHint,
-                                  { color: colors.mutedForeground },
-                                ]}
-                              >
-                                Tap to open
-                                {tIdx === arr.length - 1 ? "" : ""}
-                              </Text>
-                            </View>
-                            <Feather
-                              name="chevron-right"
-                              size={18}
-                              color={colors.mutedForeground}
-                            />
-                          </Pressable>
-                        ))
-                    )}
-                  </View>
-                ))}
+                      <Feather
+                        name="chevron-right"
+                        size={18}
+                        color={colors.mutedForeground}
+                      />
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           ))}
@@ -286,49 +263,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
-  divider: {
-    height: 1,
-    marginHorizontal: 0,
-  },
-  dbHeader: {
+  dbRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingVertical: 14,
+  },
+  dbIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   dbName: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  tableRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  tableRowText: {
-    flex: 1,
-  },
-  tableName: {
-    fontFamily: "Inter_500Medium",
     fontSize: 16,
   },
-  tableHint: {
+  dbHint: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
-  },
-  emptyTables: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-  emptyTablesText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    fontStyle: "italic",
   },
   signOut: {
     flexDirection: "row",

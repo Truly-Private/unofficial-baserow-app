@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -21,6 +23,7 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
+  deleteRow,
   getPrimaryDisplay,
   listFields,
   listRows,
@@ -34,6 +37,7 @@ export default function TableScreen() {
   const webInsets = useWebInsets();
   const creds = useCreds();
   const { apiCall } = useAuth();
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{
     id: string;
     name?: string;
@@ -69,6 +73,49 @@ export default function TableScreen() {
 
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16);
 
+  const deleteMutation = useMutation({
+    mutationFn: (rowId: number) =>
+      apiCall((c) => deleteRow(c, tableId, rowId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["rows", creds.baseUrl, tableId],
+      });
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : "Could not delete this row.";
+      if (Platform.OS === "web") {
+        // eslint-disable-next-line no-alert
+        window.alert(message);
+      } else {
+        Alert.alert("Delete failed", message);
+      }
+    },
+  });
+
+  const confirmDelete = useCallback(
+    (row: BaserowRow) => {
+      const label = getPrimaryDisplay(row, fields) || `Row ${row.id}`;
+      const message = `Delete "${label}"? This cannot be undone.`;
+      if (Platform.OS === "web") {
+        // eslint-disable-next-line no-alert
+        if (window.confirm(message)) {
+          deleteMutation.mutate(row.id);
+        }
+        return;
+      }
+      Alert.alert("Delete row", message, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate(row.id),
+        },
+      ]);
+    },
+    [deleteMutation, fields],
+  );
+
   const renderItem = ({ item }: { item: BaserowRow }) => (
     <Pressable
       onPress={() =>
@@ -81,12 +128,15 @@ export default function TableScreen() {
           },
         })
       }
+      onLongPress={() => confirmDelete(item)}
+      delayLongPress={400}
       style={({ pressed }) => [
         styles.row,
         {
           backgroundColor: pressed ? colors.surface : colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
+          opacity: deleteMutation.isPending && deleteMutation.variables === item.id ? 0.5 : 1,
         },
       ]}
     >
@@ -172,9 +222,13 @@ export default function TableScreen() {
 
       {databaseName ? (
         <Text style={[styles.crumb, { color: colors.mutedForeground }]}>
-          {databaseName}
+          {databaseName} · Long-press a row to delete
         </Text>
-      ) : null}
+      ) : (
+        <Text style={[styles.crumb, { color: colors.mutedForeground }]}>
+          Long-press a row to delete
+        </Text>
+      )}
 
       {fieldsQuery.isLoading || rowsQuery.isLoading ? (
         <LoadingState />
