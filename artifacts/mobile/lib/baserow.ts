@@ -79,7 +79,30 @@ export type BaserowField = {
   number_decimal_places?: number;
   date_include_time?: boolean;
   date_format?: string;
+  date_time_format?: string;
+  date_force_timezone?: string | null;
   select_options?: BaserowSelectOption[];
+  link_row_table_id?: number;
+  link_row_related_field_id?: number;
+};
+
+export type BaserowLinkRowValue = {
+  id: number;
+  value: string;
+  order?: string;
+};
+
+export type BaserowFile = {
+  url?: string;
+  thumbnails?: Record<string, { url: string; width: number; height: number }>;
+  visible_name: string;
+  name: string;
+  size?: number;
+  mime_type?: string;
+  is_image?: boolean;
+  image_width?: number | null;
+  image_height?: number | null;
+  uploaded_at?: string;
 };
 
 export type BaserowRow = {
@@ -289,11 +312,33 @@ export const READONLY_FIELD_TYPES = new Set<BaserowFieldType>([
   "autonumber",
   "multiple_collaborators",
   "single_collaborator",
-  "link_row",
-  "file",
   "password",
   "duration",
 ]);
+
+export async function uploadUserFile(
+  creds: BaserowCredentials,
+  file: { uri: string; name: string; type?: string },
+): Promise<BaserowFile> {
+  const url = `${creds.baseUrl.replace(/\/+$/, "")}/api/user-files/upload-file/`;
+  const form = new FormData();
+  // React Native's FormData accepts { uri, name, type } objects.
+  form.append("file", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type ?? "application/octet-stream",
+  } as unknown as Blob);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `JWT ${creds.jwt}`,
+    },
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as BaserowFile;
+}
 
 export function isEditable(field: BaserowField): boolean {
   if (field.read_only) return false;
@@ -424,6 +469,43 @@ function normalizeForApi(field: BaserowField, value: unknown): unknown {
       const n = Number(value);
       return Number.isNaN(n) ? null : n;
     }
+    case "multiple_select": {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((v) => {
+          if (typeof v === "number") return v;
+          if (v && typeof v === "object" && "id" in (v as object))
+            return (v as { id: number }).id;
+          const n = Number(v);
+          return Number.isNaN(n) ? null : n;
+        })
+        .filter((n): n is number => typeof n === "number");
+    }
+    case "link_row": {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((v) => {
+          if (typeof v === "number") return v;
+          if (v && typeof v === "object" && "id" in (v as object))
+            return (v as { id: number }).id;
+          const n = Number(v);
+          return Number.isNaN(n) ? null : n;
+        })
+        .filter((n): n is number => typeof n === "number");
+    }
+    case "file": {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((v) => {
+          if (!v || typeof v !== "object") return null;
+          const obj = v as Partial<BaserowFile>;
+          if (!obj.name) return null;
+          return obj.visible_name
+            ? { name: obj.name, visible_name: obj.visible_name }
+            : { name: obj.name };
+        })
+        .filter((v): v is { name: string; visible_name?: string } => v !== null);
+    }
     case "date": {
       if (value === null || value === "") return null;
       return value;
@@ -432,4 +514,37 @@ function normalizeForApi(field: BaserowField, value: unknown): unknown {
       if (value === "") return null;
       return value;
   }
+}
+
+/**
+ * Format a JS Date into the ISO-like string Baserow expects for a date field.
+ * - date only: "YYYY-MM-DD"
+ * - datetime:  full ISO string ("2025-04-24T13:45:00.000Z")
+ */
+export function dateToBaserowString(
+  date: Date,
+  includeTime: boolean,
+): string {
+  if (!includeTime) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return date.toISOString();
+}
+
+/**
+ * Parse a Baserow date/datetime string into a JS Date. Returns null if invalid.
+ */
+export function parseBaserowDate(value: unknown): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  const s = String(value);
+  // Date-only "YYYY-MM-DD" — interpret as local midnight to avoid timezone shifts.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-").map((p) => Number(p));
+    return new Date(y, m - 1, d);
+  }
+  const t = new Date(s);
+  return Number.isNaN(t.getTime()) ? null : t;
 }

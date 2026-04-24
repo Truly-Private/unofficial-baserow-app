@@ -1,6 +1,12 @@
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
+import { createElement, useState } from "react";
 import {
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -9,8 +15,15 @@ import {
   View,
 } from "react-native";
 
+import { FileFieldInput } from "@/components/FileFieldInput";
+import { LinkRowFieldInput } from "@/components/LinkRowFieldInput";
 import { useColors } from "@/hooks/useColors";
-import { isEditable, type BaserowField } from "@/lib/baserow";
+import {
+  dateToBaserowString,
+  isEditable,
+  parseBaserowDate,
+  type BaserowField,
+} from "@/lib/baserow";
 
 type FieldInputProps = {
   field: BaserowField;
@@ -215,6 +228,106 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
     );
   }
 
+  if (field.type === "multiple_select") {
+    const options = field.select_options ?? [];
+    const selectedIds = new Set<number>(
+      Array.isArray(value)
+        ? (value as unknown[])
+            .map((v) => {
+              if (typeof v === "number") return v;
+              if (v && typeof v === "object" && "id" in (v as object))
+                return (v as { id: number }).id;
+              return null;
+            })
+            .filter((n): n is number => typeof n === "number")
+        : [],
+    );
+    return (
+      <View style={styles.group}>
+        {labelRow}
+        <View style={styles.selectRow}>
+          {options.length === 0 ? (
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+              No options defined.
+            </Text>
+          ) : (
+            options.map((opt) => {
+              const active = selectedIds.has(opt.id);
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    const next = new Set(selectedIds);
+                    if (active) next.delete(opt.id);
+                    else next.add(opt.id);
+                    onChange(Array.from(next).map((id) => ({ id })));
+                  }}
+                  style={[
+                    styles.selectChip,
+                    {
+                      backgroundColor: active ? colors.primary : colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.selectChipText,
+                      {
+                        color: active
+                          ? colors.primaryForeground
+                          : colors.foreground,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {opt.value}
+                  </Text>
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  if (field.type === "date") {
+    return (
+      <View style={styles.group}>
+        {labelRow}
+        <DateField field={field} value={value} onChange={onChange} />
+      </View>
+    );
+  }
+
+  if (field.type === "link_row") {
+    return (
+      <View style={styles.group}>
+        {labelRow}
+        <LinkRowFieldInput
+          field={field}
+          value={value}
+          onChange={(next) => onChange(next)}
+        />
+      </View>
+    );
+  }
+
+  if (field.type === "file") {
+    return (
+      <View style={styles.group}>
+        {labelRow}
+        <FileFieldInput
+          field={field}
+          value={value}
+          onChange={(next) => onChange(next)}
+        />
+      </View>
+    );
+  }
+
   const isLong = field.type === "long_text";
   const keyboardType =
     field.type === "number"
@@ -238,9 +351,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       <TextInput
         value={stringValue}
         onChangeText={onChange}
-        placeholder={
-          field.type === "date" ? "YYYY-MM-DD" : `Enter ${field.name.toLowerCase()}`
-        }
+        placeholder={`Enter ${field.name.toLowerCase()}`}
         placeholderTextColor={colors.mutedForeground}
         keyboardType={keyboardType}
         autoCapitalize={autoCap}
@@ -259,6 +370,282 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
       />
     </View>
   );
+}
+
+type DateFieldProps = {
+  field: BaserowField;
+  value: unknown;
+  onChange: (next: unknown) => void;
+};
+
+function DateField({ field, value, onChange }: DateFieldProps) {
+  const colors = useColors();
+  const includeTime = Boolean(field.date_include_time);
+  const current = parseBaserowDate(value);
+
+  if (Platform.OS === "web") {
+    return (
+      <WebDateInput
+        includeTime={includeTime}
+        date={current}
+        onChange={(d) => onChange(d ? dateToBaserowString(d, includeTime) : null)}
+      />
+    );
+  }
+
+  return (
+    <NativeDateInput
+      includeTime={includeTime}
+      date={current}
+      onChange={(d) => onChange(d ? dateToBaserowString(d, includeTime) : null)}
+    />
+  );
+}
+
+function NativeDateInput({
+  includeTime,
+  date,
+  onChange,
+}: {
+  includeTime: boolean;
+  date: Date | null;
+  onChange: (d: Date | null) => void;
+}) {
+  const colors = useColors();
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+  const [pendingDate, setPendingDate] = useState<Date | null>(null);
+
+  const display = formatDateDisplay(date, includeTime);
+
+  function handleDateEvent(event: DateTimePickerEvent, picked?: Date) {
+    if (Platform.OS === "android") setShowDate(false);
+    if (event.type === "dismissed") return;
+    if (!picked) return;
+    if (includeTime) {
+      // On iOS the spinner returns date+time together if mode='datetime'.
+      // We open a separate time picker on Android after the date picker.
+      if (Platform.OS === "android") {
+        setPendingDate(picked);
+        setShowTime(true);
+      } else {
+        onChange(picked);
+      }
+    } else {
+      onChange(picked);
+    }
+  }
+
+  function handleTimeEvent(event: DateTimePickerEvent, picked?: Date) {
+    setShowTime(false);
+    if (event.type === "dismissed") return;
+    if (!picked) return;
+    const base = pendingDate ?? date ?? new Date();
+    const combined = new Date(base);
+    combined.setHours(picked.getHours());
+    combined.setMinutes(picked.getMinutes());
+    combined.setSeconds(0);
+    combined.setMilliseconds(0);
+    onChange(combined);
+    setPendingDate(null);
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={styles.dateRow}>
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            setShowDate(true);
+          }}
+          style={[
+            styles.dateBtn,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Feather name="calendar" size={16} color={colors.foreground} />
+          <Text style={[styles.dateBtnText, { color: colors.foreground }]}>
+            {display || "Pick a date"}
+          </Text>
+        </Pressable>
+        {date ? (
+          <Pressable
+            onPress={() => onChange(null)}
+            hitSlop={8}
+            style={[
+              styles.clearBtn,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Feather name="x" size={16} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {showDate ? (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDate(false)}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setShowDate(false)}
+          >
+            <Pressable
+              onPress={() => {}}
+              style={[
+                styles.modalCard,
+                { backgroundColor: colors.background, borderColor: colors.border },
+              ]}
+            >
+              <DateTimePicker
+                value={date ?? new Date()}
+                mode={includeTime && Platform.OS === "ios" ? "datetime" : "date"}
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                onChange={handleDateEvent}
+                themeVariant="light"
+              />
+              {Platform.OS === "ios" ? (
+                <Pressable
+                  onPress={() => setShowDate(false)}
+                  style={[styles.doneBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Text
+                    style={[
+                      styles.doneBtnText,
+                      { color: colors.primaryForeground },
+                    ]}
+                  >
+                    Done
+                  </Text>
+                </Pressable>
+              ) : null}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+
+      {showTime ? (
+        <DateTimePicker
+          value={pendingDate ?? date ?? new Date()}
+          mode="time"
+          is24Hour={false}
+          onChange={handleTimeEvent}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function WebDateInput({
+  includeTime,
+  date,
+  onChange,
+}: {
+  includeTime: boolean;
+  date: Date | null;
+  onChange: (d: Date | null) => void;
+}) {
+  const colors = useColors();
+  const inputType = includeTime ? "datetime-local" : "date";
+  const formatted = date ? toLocalInputValue(date, includeTime) : "";
+
+  return (
+    <View style={styles.dateRow}>
+      <View
+        style={[
+          styles.dateBtn,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+            paddingVertical: 0,
+            paddingHorizontal: 0,
+          },
+        ]}
+      >
+        {/* Use native HTML input on web for the proper picker. */}
+        {createElement("input", {
+          type: inputType,
+          value: formatted,
+          onChange: (e: { target: { value: string } }) => {
+            const v = e.target.value;
+            if (!v) {
+              onChange(null);
+              return;
+            }
+            const parsed = new Date(v);
+            if (Number.isNaN(parsed.getTime())) onChange(null);
+            else onChange(parsed);
+          },
+          style: {
+            width: "100%",
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            color: colors.foreground,
+            fontFamily: "Inter_400Regular, sans-serif",
+            fontSize: 16,
+            padding: "14px",
+          },
+        })}
+      </View>
+      {date ? (
+        <Pressable
+          onPress={() => onChange(null)}
+          hitSlop={8}
+          style={[
+            styles.clearBtn,
+            {
+              backgroundColor: colors.muted,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Feather name="x" size={16} color={colors.mutedForeground} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function toLocalInputValue(d: Date, includeTime: boolean): string {
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (!includeTime) return date;
+  return `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDateDisplay(date: Date | null, includeTime: boolean): string {
+  if (!date) return "";
+  if (includeTime) {
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 const styles = StyleSheet.create({
@@ -345,5 +732,54 @@ const styles = StyleSheet.create({
   selectChipText: {
     fontFamily: "Inter_500Medium",
     fontSize: 14,
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  dateBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+  },
+  dateBtnText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+    flex: 1,
+  },
+  clearBtn: {
+    width: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    gap: 8,
+  },
+  doneBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  doneBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
   },
 });
