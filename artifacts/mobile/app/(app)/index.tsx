@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -1090,6 +1090,85 @@ function NamePromptModal({
   );
 }
 
+type TemplateSelection = {
+  template: BaserowTemplate;
+  category: BaserowTemplateCategory;
+};
+
+function trimmedKeywords(template: BaserowTemplate): string {
+  return template.keywords?.trim() ?? "";
+}
+
+const ICONOIR_TO_FEATHER: Record<string, keyof typeof Feather.glyphMap> = {
+  "database-star": "database",
+  "calendar-check": "calendar",
+  "check-circle": "check-circle",
+  "check-square": "check-square",
+  "bar-chart": "bar-chart-2",
+  "pie-chart": "pie-chart",
+  "shopping-bag": "shopping-bag",
+  "shopping-cart": "shopping-cart",
+  "book-open": "book-open",
+  "map-pin": "map-pin",
+  "home-simple": "home",
+  database: "database",
+  calendar: "calendar",
+  task: "check-square",
+  briefcase: "briefcase",
+  users: "users",
+  user: "user",
+  chart: "bar-chart-2",
+  shopping: "shopping-cart",
+  inbox: "inbox",
+  mail: "mail",
+  book: "book",
+  map: "map",
+  star: "star",
+  heart: "heart",
+  settings: "settings",
+  home: "home",
+  code: "code",
+  phone: "phone",
+  camera: "camera",
+  image: "image",
+  folder: "folder",
+  file: "file-text",
+  page: "file-text",
+  notes: "edit",
+  edit: "edit",
+  tag: "tag",
+  layers: "layers",
+  layout: "layout",
+  grid: "grid",
+  list: "list",
+  cpu: "cpu",
+  clock: "clock",
+  activity: "activity",
+  truck: "truck",
+  package: "package",
+  box: "box",
+  globe: "globe",
+  link: "link",
+  target: "target",
+  award: "award",
+  flag: "flag",
+  tool: "tool",
+  wrench: "tool",
+  zap: "zap",
+};
+
+function templateIconName(icon?: string): keyof typeof Feather.glyphMap {
+  if (!icon) return "file-text";
+  const part = icon.replace(/^iconoir-/, "").toLowerCase();
+  const sortedKeys = Object.keys(ICONOIR_TO_FEATHER).sort(
+    (a, b) => b.length - a.length,
+  );
+  for (const key of sortedKeys) {
+    if (part === key || part.includes(key)) return ICONOIR_TO_FEATHER[key]!;
+  }
+  return "file-text";
+}
+
 function TemplatePickerModal({
   visible,
   workspaceName,
@@ -1109,11 +1188,25 @@ function TemplatePickerModal({
 }) {
   const colors = useColors();
   const [search, setSearch] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [templateDetail, setTemplateDetail] = useState<TemplateSelection | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setSearch("");
+      setSelectedCategoryId(null);
+      setTemplateDetail(null);
+    }
+  }, [visible]);
 
   const filteredCategories = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return categories;
-    return categories
+    let result = categories;
+    if (selectedCategoryId !== null) {
+      result = result.filter((c) => c.id === selectedCategoryId);
+    }
+    if (!term) return result;
+    return result
       .map((category) => ({
         ...category,
         templates: category.templates.filter((template) => {
@@ -1122,18 +1215,37 @@ function TemplatePickerModal({
         }),
       }))
       .filter((category) => category.templates.length > 0);
-  }, [categories, search]);
+  }, [categories, search, selectedCategoryId]);
+
+  const handleCategoryChipPress = (id: number | null) => {
+    setSelectedCategoryId(id);
+    setSearch("");
+  };
+
+  const handleTemplatePress = (template: BaserowTemplate, category: BaserowTemplateCategory) => {
+    setTemplateDetail({ template, category });
+  };
+
+  const handleInstall = () => {
+    if (!templateDetail) return;
+    onSelect(templateDetail.template);
+    setTemplateDetail(null);
+  };
+
+  const handleDetailClose = () => {
+    setTemplateDetail(null);
+  };
 
   return (
     <Modal
       animationType="fade"
       transparent
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={templateDetail ? handleDetailClose : onClose}
     >
       <Pressable
         style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
-        onPress={onClose}
+        onPress={templateDetail ? handleDetailClose : onClose}
       >
         <Pressable
           onPress={() => {}}
@@ -1146,124 +1258,311 @@ function TemplatePickerModal({
             },
           ]}
         >
-          <View style={styles.promptHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.promptTitle, { color: colors.foreground }]}>
-                Start from template
-              </Text>
-              <Text
-                style={[styles.promptHelperText, { color: colors.mutedForeground }]}
-              >
-                Install a Baserow template into {workspaceName}.
-              </Text>
-            </View>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <Feather name="x" size={22} color={colors.mutedForeground} />
-            </Pressable>
-          </View>
-
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search templates"
-            placeholderTextColor={colors.mutedForeground}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: colors.background,
-                color: colors.foreground,
-                borderColor: colors.border,
-                borderRadius: colors.radius,
-              },
-            ]}
-          />
-
-          {loading ? (
-            <LoadingState />
-          ) : filteredCategories.length === 0 ? (
-            <View style={styles.modalEmptyWrap}>
-              <EmptyState
-                icon="file-text"
-                title="No templates found"
-                description="Try a different search or use desktop Baserow for more template management."
-              />
-            </View>
+          {templateDetail ? (
+            <TemplateDetailView
+              selection={templateDetail}
+              installing={installing}
+              colors={colors}
+              onBack={handleDetailClose}
+              onInstall={handleInstall}
+            />
           ) : (
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-            >
-              {filteredCategories.map((category) => (
-                <View key={category.id} style={styles.templateSection}>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: colors.mutedForeground, marginLeft: 0 },
-                    ]}
-                  >
-                    {category.name}
+            <>
+              <View style={styles.promptHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+                    Start from template
                   </Text>
+                  <Text
+                    style={[styles.promptHelperText, { color: colors.mutedForeground }]}
+                  >
+                    Install a Baserow template into {workspaceName}.
+                  </Text>
+                </View>
+                <Pressable onPress={onClose} hitSlop={10}>
+                  <Feather name="x" size={22} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
 
-                  <View
+              <TextInput
+                value={search}
+                onChangeText={(text) => {
+                  setSearch(text);
+                  if (text.trim()) setSelectedCategoryId(null);
+                }}
+                placeholder="Search templates"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.searchInput,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                  },
+                ]}
+              />
+
+              {!loading && categories.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryChipsRow}
+                  style={styles.categoryChipsScroll}
+                >
+                  <Pressable
+                    onPress={() => handleCategoryChipPress(null)}
                     style={[
-                      styles.card,
+                      styles.categoryChip,
                       {
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                        borderRadius: colors.radius,
+                        backgroundColor:
+                          selectedCategoryId === null
+                            ? colors.primary
+                            : colors.muted,
+                        borderColor:
+                          selectedCategoryId === null
+                            ? colors.primary
+                            : colors.border,
                       },
                     ]}
                   >
-                    {category.templates.map((template, idx) => (
-                      <Pressable
-                        key={template.id}
-                        onPress={() => onSelect(template)}
-                        disabled={installing}
-                        style={({ pressed }) => [
-                          styles.templateRow,
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        {
+                          color:
+                            selectedCategoryId === null
+                              ? colors.primaryForeground
+                              : colors.mutedForeground,
+                        },
+                      ]}
+                    >
+                      All
+                    </Text>
+                  </Pressable>
+                  {categories.map((category) => (
+                    <Pressable
+                      key={category.id}
+                      onPress={() => handleCategoryChipPress(category.id)}
+                      style={[
+                        styles.categoryChip,
+                        {
+                          backgroundColor:
+                            selectedCategoryId === category.id
+                              ? colors.primary
+                              : colors.muted,
+                          borderColor:
+                            selectedCategoryId === category.id
+                              ? colors.primary
+                              : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
                           {
-                            backgroundColor: pressed ? colors.surface : "transparent",
-                            borderTopColor: colors.border,
-                            borderTopWidth: idx === 0 ? 0 : 1,
-                            opacity: installing ? 0.6 : 1,
+                            color:
+                              selectedCategoryId === category.id
+                                ? colors.primaryForeground
+                                : colors.mutedForeground,
                           },
                         ]}
                       >
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={[
-                              styles.menuItemTitle,
-                              { color: colors.foreground },
-                            ]}
-                          >
-                            {template.name}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.menuItemDescription,
-                              { color: colors.mutedForeground, marginTop: 4 },
-                            ]}
-                          >
-                            {template.keywords?.trim() || template.slug}
-                          </Text>
-                        </View>
-                        <Feather
-                          name="chevron-right"
-                          size={18}
-                          color={colors.mutedForeground}
-                        />
-                      </Pressable>
-                    ))}
-                  </View>
+                        {category.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+
+              {loading ? (
+                <LoadingState />
+              ) : filteredCategories.length === 0 ? (
+                <View style={styles.modalEmptyWrap}>
+                  <EmptyState
+                    icon="file-text"
+                    title="No templates found"
+                    description="Try a different search or category."
+                  />
                 </View>
-              ))}
-            </ScrollView>
+              ) : (
+                <ScrollView
+                  style={styles.modalScroll}
+                  contentContainerStyle={styles.modalScrollContent}
+                >
+                  {filteredCategories.map((category) => (
+                    <View key={category.id} style={styles.templateSection}>
+                      <Text
+                        style={[
+                          styles.sectionTitle,
+                          { color: colors.mutedForeground, marginLeft: 0 },
+                        ]}
+                      >
+                        {category.name}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.card,
+                          {
+                            backgroundColor: colors.background,
+                            borderColor: colors.border,
+                            borderRadius: colors.radius,
+                          },
+                        ]}
+                      >
+                        {category.templates.map((template, idx) => (
+                          <Pressable
+                            key={template.id}
+                            onPress={() => handleTemplatePress(template, category)}
+                            disabled={installing}
+                            style={({ pressed }) => [
+                              styles.templateRow,
+                              {
+                                backgroundColor: pressed ? colors.surface : "transparent",
+                                borderTopColor: colors.border,
+                                borderTopWidth: idx === 0 ? 0 : 1,
+                                opacity: installing ? 0.6 : 1,
+                              },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.templateIconBox,
+                                { backgroundColor: colors.secondary },
+                              ]}
+                            >
+                              <Feather
+                                name={templateIconName(template.icon)}
+                                size={16}
+                                color={colors.primary}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.menuItemTitle,
+                                  { color: colors.foreground },
+                                ]}
+                              >
+                                {template.name}
+                              </Text>
+                              {!!trimmedKeywords(template) && (
+                                <Text
+                                  style={[
+                                    styles.menuItemDescription,
+                                    { color: colors.mutedForeground, marginTop: 2 },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {trimmedKeywords(template)}
+                                </Text>
+                              )}
+                            </View>
+                            <Feather
+                              name="chevron-right"
+                              size={18}
+                              color={colors.mutedForeground}
+                            />
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </>
           )}
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function TemplateDetailView({
+  selection,
+  installing,
+  colors,
+  onBack,
+  onInstall,
+}: {
+  selection: TemplateSelection;
+  installing: boolean;
+  colors: ReturnType<typeof useColors>;
+  onBack: () => void;
+  onInstall: () => void;
+}) {
+  const { template, category } = selection;
+  const iconName = templateIconName(template.icon);
+
+  return (
+    <View style={styles.templateDetailWrap}>
+      <Pressable onPress={onBack} hitSlop={10} style={styles.templateDetailBack}>
+        <Feather name="arrow-left" size={18} color={colors.mutedForeground} />
+        <Text style={[styles.templateDetailBackText, { color: colors.mutedForeground }]}>
+          {category.name}
+        </Text>
+      </Pressable>
+
+      <View style={styles.templateDetailBody}>
+        <View
+          style={[
+            styles.templateDetailIcon,
+            { backgroundColor: colors.secondary },
+          ]}
+        >
+          <Feather name={iconName} size={32} color={colors.primary} />
+        </View>
+
+        <Text style={[styles.templateDetailName, { color: colors.foreground }]}>
+          {template.name}
+        </Text>
+
+        <View
+          style={[
+            styles.templateDetailCategoryBadge,
+            { backgroundColor: colors.muted },
+          ]}
+        >
+          <Text
+            style={[
+              styles.templateDetailCategoryText,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            {category.name}
+          </Text>
+        </View>
+
+        {!!trimmedKeywords(template) && (
+          <Text
+            style={[
+              styles.templateDetailDescription,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            {trimmedKeywords(template)}
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.templateDetailActions}>
+        <Button
+          title={installing ? "Installing…" : "Use this template"}
+          onPress={onInstall}
+          disabled={installing}
+          style={styles.templateDetailInstallBtn}
+        />
+        <Pressable onPress={onBack} hitSlop={10} style={styles.templateDetailCancelBtn}>
+          <Text style={[styles.templateDetailCancelText, { color: colors.mutedForeground }]}>
+            Cancel
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1659,5 +1958,97 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
     marginTop: 18,
+  },
+  categoryChipsScroll: {
+    marginBottom: 12,
+  },
+  categoryChipsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 4,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  categoryChipText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+  },
+  templateIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  templateDetailWrap: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  templateDetailBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 16,
+  },
+  templateDetailBackText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+  },
+  templateDetailBody: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  templateDetailIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  templateDetailName: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 22,
+    textAlign: "center",
+  },
+  templateDetailCategoryBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  templateDetailCategoryText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+  },
+  templateDetailDescription: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  templateDetailActions: {
+    gap: 10,
+    paddingTop: 8,
+  },
+  templateDetailInstallBtn: {
+    width: "100%",
+  },
+  templateDetailCancelBtn: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  templateDetailCancelText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
   },
 });
