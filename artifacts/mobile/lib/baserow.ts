@@ -34,6 +34,39 @@ export type BaserowTable = {
   database_id?: number;
 };
 
+export type BaserowViewType =
+  | "grid"
+  | "gallery"
+  | "form"
+  | "kanban"
+  | "calendar"
+  | string;
+
+export type BaserowView = {
+  id: number;
+  table_id: number;
+  name: string;
+  order: number;
+  type: BaserowViewType;
+  filters_disabled?: boolean;
+  public?: boolean;
+};
+
+export type BaserowViewFilter = {
+  id: number;
+  view: number;
+  field: number;
+  type: string;
+  value: string;
+};
+
+export type BaserowViewSort = {
+  id: number;
+  view: number;
+  field: number;
+  order: "ASC" | "DESC" | string;
+};
+
 export type BaserowFieldType =
   | "text"
   | "long_text"
@@ -225,15 +258,60 @@ export async function listFields(
   );
 }
 
+export async function listViews(
+  creds: BaserowCredentials,
+  tableId: number,
+): Promise<BaserowView[]> {
+  return request<BaserowView[]>(
+    creds.baseUrl,
+    `/api/database/views/table/${tableId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function listViewFilters(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<BaserowViewFilter[]> {
+  return request<BaserowViewFilter[]>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/filters/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function listViewSortings(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<BaserowViewSort[]> {
+  return request<BaserowViewSort[]>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/sortings/`,
+    { headers: authHeader(creds) },
+  );
+}
+
 export async function listRows(
   creds: BaserowCredentials,
   tableId: number,
-  opts: { search?: string; page?: number; size?: number } = {},
+  opts: {
+    search?: string;
+    page?: number;
+    size?: number;
+    viewId?: number;
+    orderBy?: string[];
+  } = {},
 ): Promise<BaserowRowsResponse> {
   const params = new URLSearchParams();
   params.set("user_field_names", "true");
   params.set("size", String(opts.size ?? 100));
   params.set("page", String(opts.page ?? 1));
+  if (opts.viewId) {
+    params.set("view_id", String(opts.viewId));
+  }
+  if (opts.orderBy && opts.orderBy.length > 0) {
+    params.set("order_by", opts.orderBy.join(","));
+  }
   if (opts.search && opts.search.trim().length > 0) {
     params.set("search", opts.search.trim());
   }
