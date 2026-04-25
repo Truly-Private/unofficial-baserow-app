@@ -1,6 +1,12 @@
 // Lightweight domain models for Baserow Mobile skeleton (Phase 2+)
 export type ViewType = "grid" | "gallery" | "form" | "kanban";
 
+export interface SelectOption {
+  id?: number;
+  value: string;
+  color: string;
+}
+
 export interface Field {
   id: string;
   name: string;
@@ -14,7 +20,10 @@ export interface Field {
     | "lookup"
     | "formula"
     | "richtext"
-    | "datetime";
+    | "datetime"
+    | "select"
+    | "multiselect";
+  options?: SelectOption[];
 }
 
 export interface Table {
