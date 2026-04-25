@@ -151,6 +151,28 @@ export type BaserowRowsResponse = {
   results: BaserowRow[];
 };
 
+export type AssistantChat = {
+  id: string;
+  uuid: string;
+  workspace_id: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantMessage = {
+  id: number;
+  message: string;
+  role: 'user' | 'assistant';
+  created_at: string;
+};
+
+export type AssistantMessagesResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: AssistantMessage[];
+};
+
 export class BaserowApiError extends Error {
   status: number;
   data: unknown;
@@ -625,4 +647,95 @@ export function parseBaserowDate(value: unknown): Date | null {
   }
   const t = new Date(s);
   return Number.isNaN(t.getTime()) ? null : t;
+}
+
+// ============================================================================
+// AI Assistant API
+// ============================================================================
+
+/**
+ * List all AI assistant chat sessions for a workspace.
+ */
+export async function listAssistantChats(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<AssistantChat[]> {
+  return request<AssistantChat[]>(
+    creds.baseUrl,
+    `/api/assistant/workspace/${workspaceId}/chats/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * List messages in an AI assistant chat.
+ */
+export async function listAssistantMessages(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  chatId: string,
+  opts: { page?: number; size?: number } = {},
+): Promise<AssistantMessagesResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(opts.page ?? 1));
+  params.set("size", String(opts.size ?? 50));
+  return request<AssistantMessagesResponse>(
+    creds.baseUrl,
+    `/api/assistant/workspace/${workspaceId}/chat/${chatId}/messages/?${params.toString()}`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Send a message to the AI assistant and get a response.
+ */
+export async function sendAssistantMessage(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  chatId: string,
+  message: string,
+): Promise<AssistantMessage> {
+  return request<AssistantMessage>(
+    creds.baseUrl,
+    `/api/assistant/workspace/${workspaceId}/chat/${chatId}/messages/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ message }),
+    },
+  );
+}
+
+/**
+ * Cancel an ongoing AI assistant message generation.
+ */
+export async function cancelAssistantMessage(
+  creds: BaserowCredentials,
+  chatUuid: string,
+): Promise<void> {
+  await request<null>(
+    creds.baseUrl,
+    `/assistant/chat/${chatUuid}/messages/`,
+    { method: "DELETE", headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Submit feedback (thumbs up/down) for an AI assistant message.
+ */
+export async function submitAssistantFeedback(
+  creds: BaserowCredentials,
+  messageId: number,
+  sentiment: "positive" | "negative",
+  feedback?: string,
+): Promise<void> {
+  await request<null>(
+    creds.baseUrl,
+    `/assistant/messages/${messageId}/feedback/`,
+    {
+      method: "PUT",
+      headers: authHeader(creds),
+      body: JSON.stringify({ sentiment, feedback }),
+    },
+  );
 }

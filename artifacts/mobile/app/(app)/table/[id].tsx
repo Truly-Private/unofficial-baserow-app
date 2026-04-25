@@ -728,6 +728,27 @@ export default function TableScreen() {
         onSelectField={setSortFieldId}
         onDirectionChange={setSortDirection}
       />
+
+      {!selectionMode && (
+        <Pressable
+          style={[
+            styles.aiFab,
+            {
+              backgroundColor: colors.primary,
+              bottom: bottomPad + 20,
+              right: 20,
+            },
+          ]}
+          onPress={() => {
+            // Navigate to AI chat with workspace context
+            // For now, we'll use the first workspace ID from the database
+            // In a real app, you'd track the workspace ID properly
+            router.push(`/ai-chat/1`);
+          }}
+        >
+          <Feather name="message-circle" size={24} color="#fff" />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -1127,6 +1148,19 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+  },
+  aiFab: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 
