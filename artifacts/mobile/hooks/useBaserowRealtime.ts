@@ -52,6 +52,10 @@ export function useBaserowRealtime(
 ) {
   const onMessageRef = useRef(onMessage);
   const reconnectAttempt = useRef(0);
+  const subscriptionPage = subscription?.page ?? null;
+  const subscriptionTableId = subscription?.tableId ?? null;
+  const subscriptionRowId =
+    subscription?.page === "row" ? subscription.rowId : null;
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -60,14 +64,20 @@ export function useBaserowRealtime(
   const socketUrl = useMemo(() => {
     if (!subscription) return null;
     return toWebSocketUrl(creds.baseUrl, creds.jwt);
-  }, [creds.baseUrl, creds.jwt, subscription?.page, subscription?.tableId, subscription?.rowId]);
+  }, [
+    creds.baseUrl,
+    creds.jwt,
+    subscriptionPage,
+    subscriptionTableId,
+    subscriptionRowId,
+  ]);
 
   const subscriptionKey = useMemo(() => {
     if (!subscription) return null;
     return subscription.page === "row"
       ? `row:${subscription.tableId}:${subscription.rowId}`
       : `table:${subscription.tableId}`;
-  }, [subscription?.page, subscription?.tableId, subscription?.rowId]);
+  }, [subscriptionPage, subscriptionTableId, subscriptionRowId]);
 
   useEffect(() => {
     if (!subscription || !socketUrl) return;

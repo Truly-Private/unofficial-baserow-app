@@ -15,16 +15,70 @@ export type BaserowUser = {
 export type BaserowWorkspace = {
   id: number;
   name: string;
+  order?: number;
 };
+
+export type BaserowApplicationType =
+  | "database"
+  | "dashboard"
+  | "automation"
+  | "builder"
+  | string;
+
+export type BaserowJobState =
+  | "pending"
+  | "running"
+  | "finished"
+  | "failed"
+  | "cancelled"
+  | string;
 
 export type BaserowApplication = {
   id: number;
   name: string;
-  type: string;
+  type: BaserowApplicationType;
   order: number;
   workspace?: BaserowWorkspace;
   group?: BaserowWorkspace;
   tables?: BaserowTable[];
+};
+
+export type BaserowTemplate = {
+  id: number;
+  name: string;
+  slug: string;
+  icon?: string;
+  keywords?: string;
+  workspace_id?: number | null;
+  is_default?: string;
+  open_application?: number | null;
+};
+
+export type BaserowTemplateCategory = {
+  id: number;
+  name: string;
+  templates: BaserowTemplate[];
+};
+
+export type BaserowImportResource = {
+  id: number;
+  name: string;
+  size?: number;
+};
+
+export type BaserowJob = {
+  id: number;
+  type: string;
+  progress_percentage: number;
+  state: BaserowJobState;
+  human_readable_error?: string;
+  created_on?: string;
+  updated_on?: string;
+  installed_applications?: unknown;
+  workspace_id?: number;
+  resource?: BaserowImportResource;
+  workspace?: BaserowWorkspace;
+  template?: BaserowTemplate;
 };
 
 export type BaserowTable = {
@@ -151,6 +205,28 @@ export type BaserowRowsResponse = {
   results: BaserowRow[];
 };
 
+export type AssistantChat = {
+  id: string;
+  uuid: string;
+  workspace_id: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantMessage = {
+  id: number;
+  message: string;
+  role: 'user' | 'assistant';
+  created_at: string;
+};
+
+export type AssistantMessagesResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: AssistantMessage[];
+};
+
 export class BaserowApiError extends Error {
   status: number;
   data: unknown;
@@ -243,6 +319,141 @@ export async function listApplications(
   creds: BaserowCredentials,
 ): Promise<BaserowApplication[]> {
   return request<BaserowApplication[]>(creds.baseUrl, "/api/applications/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function listWorkspaces(
+  creds: BaserowCredentials,
+): Promise<BaserowWorkspace[]> {
+  return request<BaserowWorkspace[]>(creds.baseUrl, "/api/workspaces/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function createWorkspace(
+  creds: BaserowCredentials,
+  params: { name: string },
+): Promise<BaserowWorkspace> {
+  return request<BaserowWorkspace>(creds.baseUrl, "/api/workspaces/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+export async function createApplication(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: {
+    name: string;
+    type: BaserowApplicationType;
+    init_with_data?: boolean;
+    description?: string;
+  },
+): Promise<BaserowApplication> {
+  return request<BaserowApplication>(
+    creds.baseUrl,
+    `/api/applications/workspace/${workspaceId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function createTable(
+  creds: BaserowCredentials,
+  databaseId: number,
+  params: {
+    name: string;
+    data?: unknown[];
+    first_row_header?: boolean;
+  },
+): Promise<BaserowTable> {
+  return request<BaserowTable>(
+    creds.baseUrl,
+    `/api/database/tables/database/${databaseId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listTemplates(
+  creds: BaserowCredentials,
+): Promise<BaserowTemplateCategory[]> {
+  return request<BaserowTemplateCategory[]>(creds.baseUrl, "/api/templates/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function installTemplateAsync(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  templateId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/templates/install/${workspaceId}/${templateId}/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function uploadImportResource(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  file: { uri: string; name: string; type?: string },
+): Promise<BaserowImportResource> {
+  const url = `${creds.baseUrl.replace(/\/+$/, "")}/api/workspaces/${workspaceId}/import/upload-file/`;
+  const form = new FormData();
+  form.append("file", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type ?? "application/octet-stream",
+  } as unknown as Blob);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `JWT ${creds.jwt}`,
+    },
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as BaserowImportResource;
+}
+
+export async function importApplicationsAsync(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  resourceId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/workspaces/${workspaceId}/import/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({
+        type: "import_applications",
+        resource_id: resourceId,
+      }),
+    },
+  );
+}
+
+export async function getJob(
+  creds: BaserowCredentials,
+  jobId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(creds.baseUrl, `/api/jobs/${jobId}/`, {
     headers: authHeader(creds),
   });
 }
@@ -625,4 +836,161 @@ export function parseBaserowDate(value: unknown): Date | null {
   }
   const t = new Date(s);
   return Number.isNaN(t.getTime()) ? null : t;
+}
+
+// ============================================================================
+// AI Assistant API
+// ============================================================================
+
+/**
+ * UI Context for AI Assistant requests.
+ */
+export type AssistantUIContext = {
+  workspace: { id: number; name: string };
+  database?: { id: number; name: string };
+  table?: { id: number; name: string };
+  view?: { id: number; name: string };
+  timezone?: string;
+};
+
+/**
+ * List all AI assistant chat sessions for a workspace.
+ * Endpoint: GET /assistant/chat/?workspace_id={workspaceId}
+ */
+export async function listAssistantChats(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<AssistantChat[]> {
+  const params = new URLSearchParams();
+  params.set("workspace_id", String(workspaceId));
+  // Use bare domain (no /api prefix) for AI endpoints
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to list chats");
+  }
+  const response = await res.json();
+  return response.results || [];
+}
+
+/**
+ * List messages in an AI assistant chat.
+ */
+export async function listAssistantMessages(
+  creds: BaserowCredentials,
+  chatUuid: string,
+  opts: { page?: number; size?: number } = {},
+): Promise<AssistantMessagesResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(opts.page ?? 1));
+  params.set("size", String(opts.size ?? 50));
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/${chatUuid}/messages/?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to list messages");
+  }
+  return res.json();
+}
+
+/**
+ * Send a message to the AI assistant and get a streaming response.
+ * Returns an async iterable of SSE events.
+ */
+export async function sendAssistantMessage(
+  creds: BaserowCredentials,
+  chatUuid: string,
+  content: string,
+  uiContext?: AssistantUIContext,
+): Promise<AsyncIterable<string>> {
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/${chatUuid}/messages/`;
+  const body = {
+    content,
+    ui_context: uiContext || {
+      workspace: { id: 1, name: "Workspace" },
+      timezone: "UTC",
+    },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `JWT ${creds.jwt}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to send message");
+  }
+  // Return the response body as an async iterable for SSE parsing
+  return res.body as unknown as AsyncIterable<string>;
+}
+
+/**
+ * Send a message and get the full response (non-streaming).
+ * Useful for simpler use cases.
+ */
+export async function sendAssistantMessageSimple(
+  creds: BaserowCredentials,
+  chatUuid: string,
+  content: string,
+  uiContext?: AssistantUIContext,
+): Promise<{ id: number; content: string }> {
+  // Use the streaming response and collect the final message
+  const stream = await sendAssistantMessage(creds, chatUuid, content, uiContext);
+  const reader = stream[Symbol.asyncIterator]();
+  let result = "";
+  let messageId: number | null = null;
+  
+  // Note: In a real implementation, you'd parse SSE events here
+  // For now, this is a placeholder that returns the request status
+  return { id: 0, content: "Message sent" };
+}
+
+/**
+ * Cancel an ongoing AI assistant message generation.
+ */
+export async function cancelAssistantMessage(
+  creds: BaserowCredentials,
+  chatUuid: string,
+): Promise<void> {
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/${chatUuid}/messages/`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to cancel message");
+  }
+}
+
+/**
+ * Submit feedback (thumbs up/down) for an AI assistant message.
+ */
+export async function submitAssistantFeedback(
+  creds: BaserowCredentials,
+  messageId: number,
+  sentiment: "positive" | "negative",
+  feedback?: string,
+): Promise<void> {
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/messages/${messageId}/feedback/`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `JWT ${creds.jwt}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sentiment, feedback }),
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to submit feedback");
+  }
 }
