@@ -469,6 +469,76 @@ export async function listFields(
   );
 }
 
+/**
+ * Create a new field in a table.
+ */
+export async function createField(
+  creds: BaserowCredentials,
+  tableId: number,
+  payload: {
+    name: string;
+    type: BaserowFieldType;
+    primary?: boolean;
+    order?: number;
+    // Type-specific options
+    number_decimal_places?: number;
+    date_include_time?: boolean;
+    date_format?: string;
+    select_options?: { value: string; color: string }[];
+    link_row_table_id?: number;
+  },
+): Promise<BaserowField> {
+  return request<BaserowField>(
+    creds.baseUrl,
+    `/api/database/fields/table/${tableId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+/**
+ * Update an existing field.
+ */
+export async function updateField(
+  creds: BaserowCredentials,
+  fieldId: number,
+  payload: Partial<{
+    name: string;
+    order: number;
+    number_decimal_places?: number;
+    date_include_time?: boolean;
+    date_format?: string;
+    select_options?: { value: string; color: string }[];
+  }>,
+): Promise<BaserowField> {
+  return request<BaserowField>(
+    creds.baseUrl,
+    `/api/database/fields/${fieldId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+/**
+ * Delete a field.
+ */
+export async function deleteField(
+  creds: BaserowCredentials,
+  fieldId: number,
+): Promise<void> {
+  await request<null>(
+    creds.baseUrl,
+    `/api/database/fields/${fieldId}/`,
+    { method: "DELETE", headers: authHeader(creds) },
+  );
+}
+
 export async function listViews(
   creds: BaserowCredentials,
   tableId: number,
