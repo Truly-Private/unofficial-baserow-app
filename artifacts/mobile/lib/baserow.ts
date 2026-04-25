@@ -363,6 +363,26 @@ export async function createApplication(
   );
 }
 
+export async function createTable(
+  creds: BaserowCredentials,
+  databaseId: number,
+  params: {
+    name: string;
+    data?: unknown[];
+    first_row_header?: boolean;
+  },
+): Promise<BaserowTable> {
+  return request<BaserowTable>(
+    creds.baseUrl,
+    `/api/database/tables/database/${databaseId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
 export async function listTemplates(
   creds: BaserowCredentials,
 ): Promise<BaserowTemplateCategory[]> {

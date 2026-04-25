@@ -1,24 +1,28 @@
 import { Feather } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
+  Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
-import { listApplications } from "@/lib/baserow";
+import { createTable, listApplications } from "@/lib/baserow";
 
 export default function DatabaseScreen() {
   const colors = useColors();
@@ -26,9 +30,12 @@ export default function DatabaseScreen() {
   const webInsets = useWebInsets();
   const creds = useCreds();
   const { apiCall } = useAuth();
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const databaseId = Number(params.id);
   const databaseNameParam = (params.name as string) || "";
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [tableName, setTableName] = useState("Untitled table");
 
   const query = useQuery({
     queryKey: ["applications", creds.baseUrl, creds.user.id],
@@ -41,14 +48,44 @@ export default function DatabaseScreen() {
   );
 
   const tables = useMemo(
-    () =>
-      (database?.tables ?? []).slice().sort((a, b) => a.order - b.order),
+    () => (database?.tables ?? []).slice().sort((a, b) => a.order - b.order),
     [database],
   );
 
   const databaseName = database?.name || databaseNameParam || "Database";
   const workspaceName =
     database?.workspace?.name ?? database?.group?.name ?? "Workspace";
+
+  const createTableMutation = useMutation({
+    mutationFn: (name: string) =>
+      apiCall((c) =>
+        createTable(c, databaseId, {
+          name,
+          data: [["Name"]],
+          first_row_header: true,
+        }),
+      ),
+    onSuccess: async (table) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["applications", creds.baseUrl, creds.user.id],
+      });
+      setCreateModalOpen(false);
+      setTableName("Untitled table");
+      router.push({
+        pathname: "/(app)/table/[id]",
+        params: {
+          id: String(table.id),
+          name: table.name,
+          database: databaseName,
+        },
+      });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Please try again.";
+      Alert.alert("Could not create table", message);
+    },
+  });
 
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16) + 24;
 
@@ -90,11 +127,16 @@ export default function DatabaseScreen() {
             <Text style={[styles.title, { color: colors.foreground }]}>
               {databaseName}
             </Text>
-            <Text
-              style={[styles.subtitle, { color: colors.mutedForeground }]}
-            >
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               {tables.length} {tables.length === 1 ? "table" : "tables"}
             </Text>
+
+            <View style={styles.headerButtonRow}>
+              <Button
+                title="New table"
+                onPress={() => setCreateModalOpen(true)}
+              />
+            </View>
           </View>
 
           {tables.length === 0 ? (
@@ -102,8 +144,14 @@ export default function DatabaseScreen() {
               <EmptyState
                 icon="layers"
                 title="No tables in this database"
-                description="Create a table in Baserow on the web, then pull to refresh."
+                description="Create your first table from mobile, similar to the desktop database flow."
               />
+              <View style={styles.emptyActionWrap}>
+                <Button
+                  title="Create table"
+                  onPress={() => setCreateModalOpen(true)}
+                />
+              </View>
             </View>
           ) : (
             <View
@@ -163,10 +211,7 @@ export default function DatabaseScreen() {
                       {table.name}
                     </Text>
                     <Text
-                      style={[
-                        styles.tableHint,
-                        { color: colors.mutedForeground },
-                      ]}
+                      style={[styles.tableHint, { color: colors.mutedForeground }]}
                     >
                       Tap to open rows
                     </Text>
@@ -182,6 +227,75 @@ export default function DatabaseScreen() {
           )}
         </ScrollView>
       )}
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={createModalOpen}
+        onRequestClose={() => setCreateModalOpen(false)}
+      >
+        <Pressable
+          style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+          onPress={() => setCreateModalOpen(false)}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={[
+              styles.promptCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius + 8,
+              },
+            ]}
+          >
+            <View style={styles.promptHeader}>
+              <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+                Create new table
+              </Text>
+              <Pressable onPress={() => setCreateModalOpen(false)} hitSlop={10}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            <Text
+              style={[styles.promptHelperText, { color: colors.mutedForeground }]}
+            >
+              Create a new table in {databaseName}. A primary “Name” field will be
+              added automatically.
+            </Text>
+
+            <Text style={[styles.label, { color: colors.foreground }]}>Name</Text>
+            <TextInput
+              value={tableName}
+              onChangeText={setTableName}
+              autoFocus
+              placeholder="Untitled table"
+              placeholderTextColor={colors.mutedForeground}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            />
+
+            <View style={styles.promptActionRow}>
+              <Button
+                title="Create table"
+                onPress={() =>
+                  createTableMutation.mutate(tableName.trim() || "Untitled table")
+                }
+                loading={createTableMutation.isPending}
+                style={styles.promptActionButton}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -207,6 +321,14 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 13,
     marginTop: 2,
+  },
+  headerButtonRow: {
+    marginTop: 16,
+    alignSelf: "flex-start",
+  },
+  emptyActionWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
   },
   card: {
     marginHorizontal: 16,
@@ -236,5 +358,54 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     marginTop: 2,
+  },
+  modalBackdrop: {
+    flex: 1,
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptCard: {
+    width: "100%",
+    maxWidth: 520,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
+  },
+  promptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  promptTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+  },
+  promptHelperText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 10,
+  },
+  label: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  input: {
+    minHeight: 56,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+  },
+  promptActionRow: {
+    alignItems: "flex-end",
+    marginTop: 18,
+  },
+  promptActionButton: {
+    minWidth: 180,
   },
 });
