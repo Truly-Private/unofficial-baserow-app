@@ -15,12 +15,20 @@ export type BaserowUser = {
 export type BaserowWorkspace = {
   id: number;
   name: string;
+  order?: number;
 };
+
+export type BaserowApplicationType =
+  | "database"
+  | "dashboard"
+  | "automation"
+  | "builder"
+  | string;
 
 export type BaserowApplication = {
   id: number;
   name: string;
-  type: string;
+  type: BaserowApplicationType;
   order: number;
   workspace?: BaserowWorkspace;
   group?: BaserowWorkspace;
@@ -267,6 +275,46 @@ export async function listApplications(
   return request<BaserowApplication[]>(creds.baseUrl, "/api/applications/", {
     headers: authHeader(creds),
   });
+}
+
+export async function listWorkspaces(
+  creds: BaserowCredentials,
+): Promise<BaserowWorkspace[]> {
+  return request<BaserowWorkspace[]>(creds.baseUrl, "/api/workspaces/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function createWorkspace(
+  creds: BaserowCredentials,
+  params: { name: string },
+): Promise<BaserowWorkspace> {
+  return request<BaserowWorkspace>(creds.baseUrl, "/api/workspaces/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+export async function createApplication(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: {
+    name: string;
+    type: BaserowApplicationType;
+    init_with_data?: boolean;
+    description?: string;
+  },
+): Promise<BaserowApplication> {
+  return request<BaserowApplication>(
+    creds.baseUrl,
+    `/api/applications/workspace/${workspaceId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
 }
 
 export async function listFields(
