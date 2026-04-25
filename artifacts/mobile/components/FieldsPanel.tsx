@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCreds, useApiCall } from "../../contexts/AuthContext";
-import { useColors } from "../../hooks/useColors";
-import { createField, updateField, deleteField, listFields, type BaserowField, type BaserowFieldType } from "../../lib/baserow";
+import { useAuth, useCreds } from "@/contexts/AuthContext";
+import { useColors } from "@/hooks/useColors";
+import { createField, updateField, deleteField, listFields, type BaserowField, type BaserowFieldType } from "@/lib/baserow";
 
 // Available field types in Baserow
 const FIELD_TYPES: { type: BaserowFieldType; label: string; icon: string }[] = [
@@ -44,7 +44,7 @@ export function FieldsPanel({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const creds = useCreds();
-  const apiCall = useApiCall();
+  const { apiCall } = useAuth();
   const queryClient = useQueryClient();
 
   const [showAddModal, setShowAddModal] = useState(false);
