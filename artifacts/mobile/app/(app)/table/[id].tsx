@@ -26,6 +26,7 @@ import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { FieldDisplay } from "@/components/FieldDisplay";
+import { FieldsPanel } from "@/components/FieldsPanel";
 import { LoadingState } from "@/components/LoadingState";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
 import {
@@ -70,6 +71,7 @@ export default function TableScreen() {
   const [sortFieldId, setSortFieldId] = useState<number | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [sortModalOpen, setSortModalOpen] = useState(false);
+  const [fieldsPanelOpen, setFieldsPanelOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
 
@@ -415,6 +417,13 @@ export default function TableScreen() {
                 />
               </Pressable>
               <Pressable
+                onPress={() => setFieldsPanelOpen(true)}
+                hitSlop={10}
+                style={{ paddingHorizontal: 4 }}
+              >
+                <Feather name="columns" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable
                 onPress={() =>
                   router.push({
                     pathname: "/(app)/row/[tableId]/new",
@@ -727,6 +736,12 @@ export default function TableScreen() {
         direction={sortDirection}
         onSelectField={setSortFieldId}
         onDirectionChange={setSortDirection}
+      />
+
+      <FieldsPanel
+        tableId={tableId}
+        visible={fieldsPanelOpen}
+        onClose={() => setFieldsPanelOpen(false)}
       />
 
       {!selectionMode && (

@@ -102,3 +102,53 @@ export async function deleteRow(
 ) {
   return client.delete(Endpoints.rows.detail(tableId, rowId));
 }
+
+// Field (column) CRUD helpers
+export async function createField(
+  client: ApiClient,
+  dbId: string,
+  tableId: string,
+  payload: { name: string; type: FieldType },
+) {
+  return client.post(Endpoints.fields.list(dbId, tableId), payload);
+}
+
+export async function updateField(
+  client: ApiClient,
+  dbId: string,
+  tableId: string,
+  fieldId: string,
+  payload: { name?: string; type?: FieldType },
+) {
+  return client.put(Endpoints.fields.detail(dbId, tableId, fieldId), payload);
+}
+
+export async function deleteField(
+  client: ApiClient,
+  dbId: string,
+  tableId: string,
+  fieldId: string,
+) {
+  return client.delete(Endpoints.fields.detail(dbId, tableId, fieldId));
+}
+
+export async function fetchTableFields(
+  client: ApiClient,
+  dbId: string,
+  tableId: string,
+) {
+  return client.get(Endpoints.fields.list(dbId, tableId));
+}
+
+// Field type union for TypeScript
+type FieldType =
+  | "text"
+  | "number"
+  | "boolean"
+  | "date"
+  | "file"
+  | "link"
+  | "lookup"
+  | "formula"
+  | "richtext"
+  | "datetime";
