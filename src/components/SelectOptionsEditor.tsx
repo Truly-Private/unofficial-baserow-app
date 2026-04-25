@@ -71,7 +71,11 @@ export const SelectOptionsEditor: React.FC<Props> = ({
   const [editing, setEditing] = useState<EditingState | null>(null);
 
   const toPayload = (opts: SelectOption[]): SelectOptionPayload[] =>
-    opts.map((o) => ({ ...(o.id !== undefined && { id: o.id }), value: o.value, color: o.color }));
+    opts.map((o) =>
+      o.id !== undefined
+        ? { id: o.id, value: o.value, color: o.color }
+        : { value: o.value, color: o.color },
+    );
 
   const invalidate = () => {
     (invalidateKeys ?? []).forEach((key) => queryClient.invalidateQueries({ queryKey: key }));

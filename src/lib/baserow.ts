@@ -89,7 +89,7 @@ export async function listFields(
 ): Promise<Field[]> {
   const data = await client.get(Endpoints.fields.tableList(tableId));
   if (!Array.isArray(data)) return [];
-  return data.map(normalizeField).sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+  return data.map(normalizeField);
 }
 
 // List rows for a given table (by numeric tableId)
