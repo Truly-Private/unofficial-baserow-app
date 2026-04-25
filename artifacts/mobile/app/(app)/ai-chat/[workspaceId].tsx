@@ -11,18 +11,18 @@ import {
   StyleSheet,
 } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
-import { useAuth } from "../../../contexts/AuthContext";
+import { useCreds } from "../../../contexts/AuthContext";
 import {
   listAssistantChats,
   listAssistantMessages,
-  sendAssistantMessage,
+  sendAssistantMessageSimple,
   AssistantChat,
   AssistantMessage,
 } from "../../../lib/baserow";
 
 export default function AIChatScreen() {
   const { workspaceId } = useLocalSearchParams<{ workspaceId: string }>();
-  const { credentials } = useAuth();
+  const credentials = useCreds();
   const [chat, setChat] = useState<AssistantChat | null>(null);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState("");
@@ -46,11 +46,7 @@ export default function AIChatScreen() {
       const existingChat = chats[0];
       if (existingChat) {
         setChat(existingChat);
-        const msgs = await listAssistantMessages(
-          credentials,
-          Number(workspaceId),
-          existingChat.id,
-        );
+        const msgs = await listAssistantMessages(credentials, existingChat.uuid);
         setMessages(msgs.results.reverse());
       } else {
         // No chat exists yet - will be created on first message
@@ -66,6 +62,10 @@ export default function AIChatScreen() {
 
   async function handleSend() {
     if (!credentials || !input.trim() || sending) return;
+    if (!chat?.uuid) {
+      setError("No assistant chat is available for this workspace yet.");
+      return;
+    }
     
     const userMessage = input.trim();
     setInput("");
@@ -82,20 +82,19 @@ export default function AIChatScreen() {
       };
       setMessages((prev) => [...prev, tempUserMsg]);
 
-      // If no chat exists, we need to handle chat creation
-      // For now, assume the API creates a chat on first message
-      // or we use a default chat ID
-      const chatId = chat?.id || "default";
-      
-      const response = await sendAssistantMessage(
+      const response = await sendAssistantMessageSimple(
         credentials,
-        Number(workspaceId),
-        chatId,
+        chat.uuid,
         userMessage,
       );
 
-      // Add assistant response
-      setMessages((prev) => [...prev, response]);
+      const assistantMessage: AssistantMessage = {
+        id: response.id,
+        message: response.content,
+        role: "assistant",
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
       
       // Scroll to bottom
       setTimeout(() => {

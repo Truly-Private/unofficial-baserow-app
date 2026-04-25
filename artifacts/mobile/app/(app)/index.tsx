@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import {
   useMutation,
   useQuery,
@@ -29,10 +30,18 @@ import { useWebInsets } from "@/hooks/useWebInsets";
 import {
   createApplication,
   createWorkspace,
+  getJob,
+  importApplicationsAsync,
+  installTemplateAsync,
   listApplications,
+  listTemplates,
   listWorkspaces,
+  uploadImportResource,
   type BaserowApplication,
   type BaserowApplicationType,
+  type BaserowJob,
+  type BaserowTemplate,
+  type BaserowTemplateCategory,
   type BaserowWorkspace,
 } from "@/lib/baserow";
 
@@ -50,7 +59,7 @@ type CreateMenuOption = {
   icon: keyof typeof Feather.glyphMap;
   type?: BaserowApplicationType;
   beta?: boolean;
-  unavailableDescription?: string;
+  action?: "template" | "import";
 };
 
 type CreateApplicationDraft = {
@@ -58,6 +67,12 @@ type CreateApplicationDraft = {
   workspaceName: string;
   option: CreateMenuOption;
   name: string;
+};
+
+type ImportFileDraft = {
+  uri: string;
+  name: string;
+  type?: string;
 };
 
 const CREATE_MENU_OPTIONS: CreateMenuOption[] = [
@@ -97,16 +112,14 @@ const CREATE_MENU_OPTIONS: CreateMenuOption[] = [
     label: "From template",
     description: "Quickly start with one of our recommended templates.",
     icon: "file-text",
-    unavailableDescription:
-      "Template creation is not available in mobile yet. Use desktop Baserow for this flow.",
+    action: "template",
   },
   {
     key: "import",
     label: "Import data",
     description: "Add existing data from a Baserow instance.",
     icon: "download",
-    unavailableDescription:
-      "Import data is not available in mobile yet. Use desktop Baserow for this flow.",
+    action: "import",
   },
 ];
 
@@ -171,6 +184,10 @@ function getApplicationMeta(app: BaserowApplication) {
   };
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function WorkspacesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -184,6 +201,11 @@ export default function WorkspacesScreen() {
   const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceGroup | null>(null);
   const [createAppDraft, setCreateAppDraft] =
     useState<CreateApplicationDraft | null>(null);
+  const [templateWorkspace, setTemplateWorkspace] =
+    useState<WorkspaceGroup | null>(null);
+  const [importWorkspace, setImportWorkspace] =
+    useState<WorkspaceGroup | null>(null);
+  const [importFile, setImportFile] = useState<ImportFileDraft | null>(null);
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces", creds.baseUrl, creds.user.id],
@@ -195,6 +217,54 @@ export default function WorkspacesScreen() {
     queryFn: () => apiCall((c) => listApplications(c)),
   });
 
+  const templatesQuery = useQuery({
+    queryKey: ["templates", creds.baseUrl],
+    queryFn: () => apiCall((c) => listTemplates(c)),
+    enabled: !!templateWorkspace,
+  });
+
+  const refreshAll = async () => {
+    await Promise.all([
+      workspacesQuery.refetch(),
+      applicationsQuery.refetch(),
+      templateWorkspace ? templatesQuery.refetch() : Promise.resolve(),
+    ]);
+  };
+
+  const invalidateWorkspaceData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["workspaces", creds.baseUrl, creds.user.id],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["applications", creds.baseUrl, creds.user.id],
+      }),
+    ]);
+  };
+
+  const monitorJobUntilSettled = async (jobId: number): Promise<BaserowJob> => {
+    let lastJob: BaserowJob | null = null;
+
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      const job = await apiCall((c) => getJob(c, jobId));
+      lastJob = job;
+
+      if (job.state === "finished") {
+        await invalidateWorkspaceData();
+        return job;
+      }
+
+      if (job.state === "failed" || job.state === "cancelled") {
+        throw new Error(job.human_readable_error || `Job ${job.state}`);
+      }
+
+      await delay(2000);
+    }
+
+    if (lastJob) return lastJob;
+    throw new Error("Timed out waiting for background job");
+  };
+
   const createWorkspaceMutation = useMutation({
     mutationFn: (name: string) =>
       apiCall((c) =>
@@ -203,14 +273,7 @@ export default function WorkspacesScreen() {
         }),
       ),
     onSuccess: async (workspace) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["workspaces", creds.baseUrl, creds.user.id],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["applications", creds.baseUrl, creds.user.id],
-        }),
-      ]);
+      await invalidateWorkspaceData();
       setWorkspaceModalOpen(false);
       setWorkspaceName("Untitled Workspace");
       setMenuWorkspace({
@@ -237,9 +300,7 @@ export default function WorkspacesScreen() {
         }),
       ),
     onSuccess: async (application, draft) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["applications", creds.baseUrl, creds.user.id],
-      });
+      await invalidateWorkspaceData();
       setCreateAppDraft(null);
       if (application.type === "database") {
         router.push({
@@ -260,6 +321,90 @@ export default function WorkspacesScreen() {
       const message =
         error instanceof Error ? error.message : "Please try again.";
       Alert.alert("Could not create item", message);
+    },
+  });
+
+  const installTemplateMutation = useMutation({
+    mutationFn: async ({
+      workspace,
+      template,
+    }: {
+      workspace: WorkspaceGroup;
+      template: BaserowTemplate;
+    }) => {
+      const job = await apiCall((c) =>
+        installTemplateAsync(c, workspace.id, template.id),
+      );
+      return { workspace, template, job };
+    },
+    onSuccess: ({ workspace, template, job }) => {
+      setTemplateWorkspace(null);
+      Alert.alert(
+        "Template install started",
+        `Installing "${template.name}" into ${workspace.name}. We'll refresh your workspace when it's finished.`,
+      );
+
+      void monitorJobUntilSettled(job.id)
+        .then(() => {
+          Alert.alert(
+            "Template installed",
+            `"${template.name}" is now available in ${workspace.name}.`,
+          );
+        })
+        .catch((error) => {
+          const message =
+            error instanceof Error ? error.message : "Please try again.";
+          Alert.alert("Template install failed", message);
+        });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Please try again.";
+      Alert.alert("Could not install template", message);
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async ({
+      workspace,
+      file,
+    }: {
+      workspace: WorkspaceGroup;
+      file: ImportFileDraft;
+    }) => {
+      const resource = await apiCall((c) =>
+        uploadImportResource(c, workspace.id, file),
+      );
+      const job = await apiCall((c) =>
+        importApplicationsAsync(c, workspace.id, resource.id),
+      );
+      return { workspace, file, job };
+    },
+    onSuccess: ({ workspace, file, job }) => {
+      setImportWorkspace(null);
+      setImportFile(null);
+      Alert.alert(
+        "Import started",
+        `Uploading and importing "${file.name}" into ${workspace.name}. We'll refresh the workspace when the import finishes.`,
+      );
+
+      void monitorJobUntilSettled(job.id)
+        .then(() => {
+          Alert.alert(
+            "Import finished",
+            `Imported data is now available in ${workspace.name}.`,
+          );
+        })
+        .catch((error) => {
+          const message =
+            error instanceof Error ? error.message : "Please try again.";
+          Alert.alert("Import failed", message);
+        });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Please try again.";
+      Alert.alert("Could not import data", message);
     },
   });
 
@@ -313,29 +458,35 @@ export default function WorkspacesScreen() {
 
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16) + 24;
 
-  const refreshAll = () => {
-    workspacesQuery.refetch();
-    applicationsQuery.refetch();
-  };
-
   const openCreateMenu = (workspace: WorkspaceGroup) => {
     setMenuWorkspace(workspace);
   };
 
   const handleMenuOptionPress = (option: CreateMenuOption) => {
     if (!menuWorkspace) return;
-    if (!option.type) {
+
+    if (option.action === "template") {
+      setTemplateWorkspace(menuWorkspace);
       setMenuWorkspace(null);
-      Alert.alert(option.label, option.unavailableDescription ?? "Coming soon.");
       return;
     }
-    setMenuWorkspace(null);
+
+    if (option.action === "import") {
+      setImportWorkspace(menuWorkspace);
+      setImportFile(null);
+      setMenuWorkspace(null);
+      return;
+    }
+
+    if (!option.type) return;
+
     setCreateAppDraft({
       workspaceId: menuWorkspace.id,
       workspaceName: menuWorkspace.name,
       option,
       name: defaultAppName(option),
     });
+    setMenuWorkspace(null);
   };
 
   const handleApplicationPress = (app: BaserowApplication) => {
@@ -355,6 +506,20 @@ export default function WorkspacesScreen() {
       app.name,
       `${meta.hint} creation is now available on mobile. Opening and editing this type in mobile is coming next.`,
     );
+  };
+
+  const pickImportFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setImportFile({
+      uri: asset.uri,
+      name: asset.name,
+      type: asset.mimeType ?? undefined,
+    });
   };
 
   return (
@@ -403,14 +568,14 @@ export default function WorkspacesScreen() {
         <ErrorState
           title="Could not load your workspaces"
           message={error?.message ?? "Please try again."}
-          onRetry={refreshAll}
+          onRetry={() => void refreshAll()}
         />
       ) : groups.length === 0 ? (
         <View style={styles.emptyWrap}>
           <EmptyState
             icon="folder"
             title="No workspaces yet"
-            description="Create a workspace to start adding databases, applications, dashboards, and automations."
+            description="Create a workspace to start adding databases, applications, dashboards, automations, templates, and imports."
           />
           <Button
             title="Create workspace"
@@ -426,7 +591,7 @@ export default function WorkspacesScreen() {
               refreshing={
                 workspacesQuery.isRefetching || applicationsQuery.isRefetching
               }
-              onRefresh={refreshAll}
+              onRefresh={() => void refreshAll()}
               tintColor={colors.primary}
             />
           }
@@ -500,8 +665,8 @@ export default function WorkspacesScreen() {
                       { color: colors.mutedForeground },
                     ]}
                   >
-                    Add a database or one of the desktop-style beta surfaces to get
-                    started.
+                    Add a database, install a template, or import existing data to
+                    get started.
                   </Text>
                 </View>
               ) : (
@@ -667,6 +832,41 @@ export default function WorkspacesScreen() {
             ? `This will be added to ${createAppDraft.workspaceName}.`
             : undefined
         }
+      />
+
+      <TemplatePickerModal
+        visible={!!templateWorkspace}
+        workspaceName={templateWorkspace?.name ?? ""}
+        categories={templatesQuery.data ?? []}
+        loading={templatesQuery.isLoading}
+        installing={installTemplateMutation.isPending}
+        onClose={() => setTemplateWorkspace(null)}
+        onSelect={(template) => {
+          if (!templateWorkspace) return;
+          installTemplateMutation.mutate({
+            workspace: templateWorkspace,
+            template,
+          });
+        }}
+      />
+
+      <ImportDataModal
+        visible={!!importWorkspace}
+        workspaceName={importWorkspace?.name ?? ""}
+        file={importFile}
+        loading={importMutation.isPending}
+        onClose={() => {
+          setImportWorkspace(null);
+          setImportFile(null);
+        }}
+        onPickFile={() => void pickImportFile()}
+        onImport={() => {
+          if (!importWorkspace || !importFile) return;
+          importMutation.mutate({
+            workspace: importWorkspace,
+            file: importFile,
+          });
+        }}
       />
     </View>
   );
@@ -890,6 +1090,283 @@ function NamePromptModal({
   );
 }
 
+function TemplatePickerModal({
+  visible,
+  workspaceName,
+  categories,
+  loading,
+  installing,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  workspaceName: string;
+  categories: BaserowTemplateCategory[];
+  loading: boolean;
+  installing: boolean;
+  onClose: () => void;
+  onSelect: (template: BaserowTemplate) => void;
+}) {
+  const colors = useColors();
+  const [search, setSearch] = useState("");
+
+  const filteredCategories = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return categories;
+    return categories
+      .map((category) => ({
+        ...category,
+        templates: category.templates.filter((template) => {
+          const haystack = `${template.name} ${template.slug} ${template.keywords ?? ""}`.toLowerCase();
+          return haystack.includes(term);
+        }),
+      }))
+      .filter((category) => category.templates.length > 0);
+  }, [categories, search]);
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.largeModalCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+                Start from template
+              </Text>
+              <Text
+                style={[styles.promptHelperText, { color: colors.mutedForeground }]}
+              >
+                Install a Baserow template into {workspaceName}.
+              </Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search templates"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colors.background,
+                color: colors.foreground,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          />
+
+          {loading ? (
+            <LoadingState />
+          ) : filteredCategories.length === 0 ? (
+            <View style={styles.modalEmptyWrap}>
+              <EmptyState
+                icon="file-text"
+                title="No templates found"
+                description="Try a different search or use desktop Baserow for more template management."
+              />
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              {filteredCategories.map((category) => (
+                <View key={category.id} style={styles.templateSection}>
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      { color: colors.mutedForeground, marginLeft: 0 },
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        borderRadius: colors.radius,
+                      },
+                    ]}
+                  >
+                    {category.templates.map((template, idx) => (
+                      <Pressable
+                        key={template.id}
+                        onPress={() => onSelect(template)}
+                        disabled={installing}
+                        style={({ pressed }) => [
+                          styles.templateRow,
+                          {
+                            backgroundColor: pressed ? colors.surface : "transparent",
+                            borderTopColor: colors.border,
+                            borderTopWidth: idx === 0 ? 0 : 1,
+                            opacity: installing ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.menuItemTitle,
+                              { color: colors.foreground },
+                            ]}
+                          >
+                            {template.name}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.menuItemDescription,
+                              { color: colors.mutedForeground, marginTop: 4 },
+                            ]}
+                          >
+                            {template.keywords?.trim() || template.slug}
+                          </Text>
+                        </View>
+                        <Feather
+                          name="chevron-right"
+                          size={18}
+                          color={colors.mutedForeground}
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function ImportDataModal({
+  visible,
+  workspaceName,
+  file,
+  loading,
+  onClose,
+  onPickFile,
+  onImport,
+}: {
+  visible: boolean;
+  workspaceName: string;
+  file: ImportFileDraft | null;
+  loading: boolean;
+  onClose: () => void;
+  onPickFile: () => void;
+  onImport: () => void;
+}) {
+  const colors = useColors();
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.promptCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+              Import data
+            </Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <Text
+            style={[styles.promptHelperText, { color: colors.mutedForeground }]}
+          >
+            Import an exported Baserow package into {workspaceName}. Pick a file
+            from your device to upload and import.
+          </Text>
+
+          <Pressable
+            onPress={onPickFile}
+            style={({ pressed }) => [
+              styles.importPicker,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Feather name="paperclip" size={18} color={colors.mutedForeground} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.menuItemTitle, { color: colors.foreground }]}>
+                {file ? file.name : "Choose import file"}
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: colors.mutedForeground, marginTop: 4 },
+                ]}
+              >
+                Supported by Baserow import endpoints after upload.
+              </Text>
+            </View>
+          </Pressable>
+
+          <View style={styles.promptActionRow}>
+            <Button
+              title="Start import"
+              onPress={onImport}
+              loading={loading}
+              disabled={!file}
+              style={styles.promptActionButton}
+            />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   headerActions: {
@@ -1095,6 +1572,15 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 22,
   },
+  largeModalCard: {
+    width: "100%",
+    maxWidth: 760,
+    maxHeight: "85%",
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
+  },
   promptHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1123,6 +1609,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 16,
   },
+  searchInput: {
+    minHeight: 52,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontFamily: "Inter_400Regular",
+    fontSize: 15,
+    marginTop: 16,
+    marginBottom: 16,
+  },
   promptHelperText: {
     fontFamily: "Inter_400Regular",
     fontSize: 13,
@@ -1135,5 +1630,34 @@ const styles = StyleSheet.create({
   },
   promptActionButton: {
     minWidth: 200,
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
+  },
+  modalEmptyWrap: {
+    paddingVertical: 32,
+  },
+  templateSection: {
+    marginBottom: 20,
+  },
+  templateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  importPicker: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 18,
   },
 });
