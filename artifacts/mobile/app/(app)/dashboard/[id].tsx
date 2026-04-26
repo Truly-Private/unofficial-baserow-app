@@ -272,6 +272,21 @@ function validateWidgetForm(form: WidgetFormState) {
   return null;
 }
 
+function numericWidgetLayoutValue(
+  value: unknown,
+  fallback: number,
+  min: number,
+) {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : fallback;
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.round(parsed));
+}
+
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -365,6 +380,38 @@ export default function DashboardScreen() {
       integrationsQuery.refetch(),
       userSourcesQuery.refetch(),
     ]);
+  };
+
+  const openConnectedWidgetForm = (source: BaserowDataSource) => {
+    setWidgetForm({
+      mode: "create",
+      widget: null,
+      form: {
+        ...blankWidgetForm(widgets.length, dataSources),
+        dataSourceId: String(source.id),
+        title: dataSourceName(source),
+      },
+    });
+  };
+
+  const updateWidgetLayout = (
+    widget: BaserowDashboardWidget,
+    delta: Partial<Record<"row" | "col" | "width" | "height", number>>,
+  ) => {
+    const next = {
+      row: numericWidgetLayoutValue(widget.row, 0, 0) + (delta.row ?? 0),
+      col: numericWidgetLayoutValue(widget.col, 0, 0) + (delta.col ?? 0),
+      width: numericWidgetLayoutValue(widget.width, 4, 1) + (delta.width ?? 0),
+      height: numericWidgetLayoutValue(widget.height, 3, 1) + (delta.height ?? 0),
+    };
+    next.row = Math.max(0, next.row);
+    next.col = Math.max(0, next.col);
+    next.width = Math.max(1, next.width);
+    next.height = Math.max(1, next.height);
+
+    widgetActionMutation.mutate(() =>
+      apiCall((c) => updateDashboardWidget(c, widget.id, next)),
+    );
   };
 
   return (
@@ -499,6 +546,27 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                   <WidgetPayloadPreview widget={widget} />
+                  <View style={[styles.layoutSummary, { borderColor: colors.border }]}>
+                    <Text style={[styles.previewLabel, { color: colors.mutedForeground }]}>
+                      Layout
+                    </Text>
+                    <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>
+                      Row {numericWidgetLayoutValue(widget.row, 0, 0)} · Column{" "}
+                      {numericWidgetLayoutValue(widget.col, 0, 0)} ·{" "}
+                      {numericWidgetLayoutValue(widget.width, 4, 1)}×
+                      {numericWidgetLayoutValue(widget.height, 3, 1)}
+                    </Text>
+                    <View style={styles.layoutControlGrid}>
+                      <Pill label="↑" onPress={() => updateWidgetLayout(widget, { row: -1 })} />
+                      <Pill label="↓" onPress={() => updateWidgetLayout(widget, { row: 1 })} />
+                      <Pill label="←" onPress={() => updateWidgetLayout(widget, { col: -1 })} />
+                      <Pill label="→" onPress={() => updateWidgetLayout(widget, { col: 1 })} />
+                      <Pill label="Wider" onPress={() => updateWidgetLayout(widget, { width: 1 })} />
+                      <Pill label="Narrower" onPress={() => updateWidgetLayout(widget, { width: -1 })} />
+                      <Pill label="Taller" onPress={() => updateWidgetLayout(widget, { height: 1 })} />
+                      <Pill label="Shorter" onPress={() => updateWidgetLayout(widget, { height: -1 })} />
+                    </View>
+                  </View>
                   <View style={styles.actionRow}>
                     <Pressable
                       onPress={() =>
@@ -556,7 +624,7 @@ export default function DashboardScreen() {
 
           <Section title="Data sources" icon="refresh-cw">
             {dataSources.length === 0 ? (
-              <EmptyState icon="database" title="No data sources" description="Add data sources on desktop, then refresh and inspect them here." />
+              <EmptyState icon="database" title="No data sources" description="The Baserow REST schema exposes dashboard data-source listing, update, and dispatch endpoints here. Create or connect one from desktop or a widget payload, then refresh." />
             ) : (
               dataSources.map((source) => (
                 <Card key={source.id}>
@@ -574,6 +642,12 @@ export default function DashboardScreen() {
                     </Pressable>
                   </View>
                   <View style={styles.actionRow}>
+                    <Pressable
+                      onPress={() => openConnectedWidgetForm(source)}
+                      style={[styles.pill, { backgroundColor: colors.primary }]}
+                    >
+                      <Text style={[styles.pillText, { color: colors.primaryForeground }]}>Connect widget</Text>
+                    </Pressable>
                     <Pressable
                       onPress={() =>
                         setAction({
@@ -1017,6 +1091,8 @@ const styles = StyleSheet.create({
   input: { minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular" },
   multilineInput: { minHeight: 86, textAlignVertical: "top" },
   layoutGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  layoutSummary: { marginTop: 12, borderTopWidth: 1, paddingTop: 12 },
+  layoutControlGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   sourceList: { gap: 8 },
   sourceOption: { flexDirection: "row", gap: 10, borderWidth: 1, borderRadius: 14, padding: 12 },
   helperText: { fontSize: 13, lineHeight: 18, fontFamily: "Inter_500Medium" },

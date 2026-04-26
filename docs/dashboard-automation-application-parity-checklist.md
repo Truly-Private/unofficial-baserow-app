@@ -28,11 +28,11 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Add widget type picker.
 - [x] Add guided widget title/configuration fields.
 - [x] Add data-source picker for widgets that need data.
-- [ ] Add data-source creation/connection flow.
+- [x] Add data-source creation/connection flow.
 - [x] Add layout basics: row, column, width, height.
 - [x] Render basic widget cards using widget payloads instead of JSON previews only.
 - [x] Add widget edit form for supported widget types.
-- [ ] Add dashboard layout editing controls.
+- [x] Add dashboard layout editing controls.
 - [x] Add validation before creating/updating widgets.
 
 ## Automation parity
