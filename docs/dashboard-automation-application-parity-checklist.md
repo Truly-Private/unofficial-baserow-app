@@ -24,16 +24,16 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 
 ### Next dashboard work
 
-- [ ] Add native “New widget” modal.
-- [ ] Add widget type picker.
-- [ ] Add guided widget title/configuration fields.
-- [ ] Add data-source picker for widgets that need data.
+- [x] Add native “New widget” modal.
+- [x] Add widget type picker.
+- [x] Add guided widget title/configuration fields.
+- [x] Add data-source picker for widgets that need data.
 - [ ] Add data-source creation/connection flow.
-- [ ] Add layout basics: row, column, width, height.
-- [ ] Render basic widget cards using widget payloads instead of JSON previews only.
-- [ ] Add widget edit form for supported widget types.
+- [x] Add layout basics: row, column, width, height.
+- [x] Render basic widget cards using widget payloads instead of JSON previews only.
+- [x] Add widget edit form for supported widget types.
 - [ ] Add dashboard layout editing controls.
-- [ ] Add validation before creating/updating widgets.
+- [x] Add validation before creating/updating widgets.
 
 ## Automation parity
 
@@ -103,7 +103,7 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 
 ## Recommended build order
 
-- [ ] Checkpoint 1: Dashboard guided widget creation and basic widget rendering.
+- [x] Checkpoint 1: Dashboard guided widget creation and basic widget rendering.
 - [ ] Checkpoint 2: Dashboard data-source picker/setup and widget edit forms.
 - [ ] Checkpoint 3: Automation guided node picker and native node forms.
 - [ ] Checkpoint 4: Automation run detail and publish validation.
