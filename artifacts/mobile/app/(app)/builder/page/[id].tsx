@@ -82,6 +82,46 @@ type ElementEditorState = {
   advancedJson: string;
 };
 
+type DataSourceFormState = {
+  type: string;
+  name: string;
+  tableId: string;
+  rowId: string;
+  integrationId: string;
+  url: string;
+  advancedJson: string;
+};
+
+type WorkflowActionFormState = {
+  type: string;
+  event: string;
+  title: string;
+  description: string;
+  url: string;
+  dataSourceId: string;
+  advancedJson: string;
+};
+
+type DataSourceOption = {
+  type: string;
+  label: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+  needsTable?: boolean;
+  needsRow?: boolean;
+  needsUrl?: boolean;
+};
+
+type WorkflowActionOption = {
+  type: string;
+  label: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+  needsMessage?: boolean;
+  needsUrl?: boolean;
+  needsDataSource?: boolean;
+};
+
 const ELEMENT_OPTIONS: ElementOption[] = [
   {
     type: "heading",
@@ -155,6 +195,19 @@ const ELEMENT_OPTIONS: ElementOption[] = [
 
 const ELEMENT_OPTION_BY_TYPE = new Map(ELEMENT_OPTIONS.map((option) => [option.type, option]));
 
+const DATA_SOURCE_OPTIONS: DataSourceOption[] = [
+  { type: "local_baserow_list_rows", label: "List rows", icon: "list" as const, description: "Read table rows into the page.", needsTable: true },
+  { type: "local_baserow_get_row", label: "Get row", icon: "file-text" as const, description: "Load one Baserow row by formula.", needsTable: true, needsRow: true },
+  { type: "http_request", label: "HTTP request", icon: "send" as const, description: "Fetch data from an HTTP endpoint.", needsUrl: true },
+];
+
+const WORKFLOW_ACTION_OPTIONS: WorkflowActionOption[] = [
+  { type: "notification", label: "Notification", icon: "bell" as const, description: "Show a page notification.", needsMessage: true },
+  { type: "open_page", label: "Open page/URL", icon: "external-link" as const, description: "Navigate the visitor to another page or URL.", needsUrl: true },
+  { type: "refresh_data_source", label: "Refresh data source", icon: "refresh-cw" as const, description: "Refresh a page data source.", needsDataSource: true },
+  { type: "http_request", label: "HTTP request", icon: "send" as const, description: "Call an HTTP endpoint from a workflow action.", needsUrl: true },
+];
+
 function optionForElementType(type: string) {
   return ELEMENT_OPTION_BY_TYPE.get(type) ?? ELEMENT_OPTIONS[0];
 }
@@ -215,6 +268,30 @@ function blankElementForm(elements: BaserowBuilderElement[]): ElementFormState {
   };
 }
 
+function blankDataSourceForm(): DataSourceFormState {
+  return {
+    type: DATA_SOURCE_OPTIONS[0].type,
+    name: "Rows data source",
+    tableId: "",
+    rowId: "",
+    integrationId: "",
+    url: "",
+    advancedJson: "{}",
+  };
+}
+
+function blankWorkflowActionForm(): WorkflowActionFormState {
+  return {
+    type: WORKFLOW_ACTION_OPTIONS[0].type,
+    event: "click",
+    title: "Done",
+    description: "The action completed.",
+    url: "",
+    dataSourceId: "",
+    advancedJson: "{}",
+  };
+}
+
 function editorFromElement(element: BaserowBuilderElement): ElementEditorState {
   return {
     element,
@@ -225,6 +302,69 @@ function editorFromElement(element: BaserowBuilderElement): ElementEditorState {
     level: element.level ? String(element.level) : "1",
     advancedJson: JSON.stringify(element, null, 2),
   };
+}
+
+function buildDataSourcePayload(form: DataSourceFormState, pageId: number) {
+  const option = DATA_SOURCE_OPTIONS.find((item) => item.type === form.type) ?? DATA_SOURCE_OPTIONS[0];
+  const payload: Record<string, unknown> = {
+    type: form.type,
+    page_id: pageId,
+  };
+  if (form.name.trim()) payload.name = form.name.trim();
+  const tableId = parsePositiveInteger(form.tableId, "Table ID");
+  const rowId = parsePositiveInteger(form.rowId, "Row ID");
+  const integrationId = parsePositiveInteger(form.integrationId, "Integration ID");
+  if (option.needsTable && !tableId) throw new Error("Add a table ID for this data source.");
+  if (tableId) payload.table_id = tableId;
+  if (integrationId) payload.integration_id = integrationId;
+  if (option.needsRow) {
+    if (!rowId) throw new Error("Add a row ID/formula value for this data source.");
+    payload.row_id = formulaValue(String(rowId));
+  }
+  if (option.needsUrl) {
+    if (!/^https?:\/\//i.test(form.url.trim())) throw new Error("URL must start with http:// or https://.");
+    payload.url = formulaValue(form.url.trim());
+    payload.method = "GET";
+    payload.sample_data = {};
+  }
+  const advanced = parseOptionalObjectJson(form.advancedJson, "Advanced JSON");
+  if (advanced) Object.assign(payload, advanced);
+  return payload;
+}
+
+function buildWorkflowActionPayload(form: WorkflowActionFormState) {
+  const option = WORKFLOW_ACTION_OPTIONS.find((item) => item.type === form.type) ?? WORKFLOW_ACTION_OPTIONS[0];
+  const payload: Record<string, unknown> = {
+    type: form.type,
+    event: form.event.trim() || "click",
+  };
+  if (option.needsMessage) {
+    payload.title = formulaValue(form.title.trim() || "Notification");
+    payload.description = formulaValue(form.description.trim());
+  }
+  if (option.needsUrl) {
+    if (!/^https?:\/\//i.test(form.url.trim())) throw new Error("URL must start with http:// or https://.");
+    payload.navigate_to_url = formulaValue(form.url.trim());
+    payload.url = formulaValue(form.url.trim());
+  }
+  if (option.needsDataSource) {
+    const dataSourceId = parsePositiveInteger(form.dataSourceId, "Data source ID");
+    if (!dataSourceId) throw new Error("Choose a data source ID.");
+    payload.data_source_id = dataSourceId;
+  }
+  const advanced = parseOptionalObjectJson(form.advancedJson, "Advanced JSON");
+  if (advanced) Object.assign(payload, advanced);
+  return payload;
+}
+
+function validateSetupForm(kind: "dataSource" | "workflowAction", form: DataSourceFormState | WorkflowActionFormState, pageId: number) {
+  try {
+    if (kind === "dataSource") buildDataSourcePayload(form as DataSourceFormState, pageId);
+    else buildWorkflowActionPayload(form as WorkflowActionFormState);
+  } catch (error) {
+    return error instanceof Error ? error.message : "Check the setup fields.";
+  }
+  return null;
 }
 
 function buildCommonElementPayload(form: ElementFormState | ElementEditorState, type: string, includeOrder: boolean) {
@@ -328,6 +468,8 @@ export default function BuilderPageScreen() {
   const [jsonAction, setJsonAction] = useState<(JsonAction & { run: (payload: Record<string, unknown>) => void }) | null>(null);
   const [elementForm, setElementForm] = useState<ElementFormState | null>(null);
   const [elementEditor, setElementEditor] = useState<ElementEditorState | null>(null);
+  const [dataSourceForm, setDataSourceForm] = useState<DataSourceFormState | null>(null);
+  const [workflowActionForm, setWorkflowActionForm] = useState<WorkflowActionFormState | null>(null);
 
   const elementsQuery = useQuery({ queryKey: ["builderPage", pageId, "elements"], queryFn: () => apiCall((c) => listBuilderPageElements(c, pageId)) });
   const dataSourcesQuery = useQuery({ queryKey: ["builderPage", pageId, "dataSources"], queryFn: () => apiCall((c) => listBuilderPageDataSources(c, pageId)) });
@@ -340,6 +482,8 @@ export default function BuilderPageScreen() {
       setJsonAction(null);
       setElementForm(null);
       setElementEditor(null);
+      setDataSourceForm(null);
+      setWorkflowActionForm(null);
       await refresh();
     },
     onError: (error) => Alert.alert("Builder page action failed", error instanceof Error ? error.message : "Please try again."),
@@ -373,6 +517,8 @@ export default function BuilderPageScreen() {
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{elements.length} elements · {dataSources.length} data sources · {actions.length} actions</Text>
           <View style={styles.headerButtonRow}>
             <Pill label="New element" primary onPress={() => setElementForm(blankElementForm(elements))} />
+            <Pill label="New data source" primary onPress={() => setDataSourceForm(blankDataSourceForm())} />
+            <Pill label="New action" primary onPress={() => setWorkflowActionForm(blankWorkflowActionForm())} />
             <Pill label="Dispatch all data" onPress={() => dispatchAllMutation.mutate()} />
             <Pill label="Create element JSON" onPress={() => setJsonAction({ title: "Create element", description: "Enter the exact element payload Baserow expects.", initialJson: '{\n  "type": "heading",\n  "order": 0\n}', submitLabel: "Create", requiresJson: true, run: (payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPageElement(c, pageId, payload))) })} />
             <Pill label="Create data source JSON" onPress={() => setJsonAction({ title: "Create data source", description: "Enter the exact data-source payload Baserow expects.", initialJson: '{\n  "type": "local_baserow_list_rows"\n}', submitLabel: "Create", requiresJson: true, run: (payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPageDataSource(c, pageId, payload))) })} />
@@ -427,6 +573,8 @@ export default function BuilderPageScreen() {
     )}
     <ElementFormModal form={elementForm} elements={elements} loading={actionMutation.isPending} onClose={() => setElementForm(null)} onChange={setElementForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPageElement(c, pageId, payload)))} />
     <ElementEditorModal editor={elementEditor} loading={actionMutation.isPending} onClose={() => setElementEditor(null)} onChange={setElementEditor} onSubmit={(element, payload) => actionMutation.mutate(() => apiCall((c) => updateBuilderPageElement(c, element.id, payload)))} />
+    <DataSourceFormModal form={dataSourceForm} pageId={pageId} loading={actionMutation.isPending} onClose={() => setDataSourceForm(null)} onChange={setDataSourceForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPageDataSource(c, pageId, payload)))} />
+    <WorkflowActionFormModal form={workflowActionForm} dataSources={dataSources} pageId={pageId} loading={actionMutation.isPending} onClose={() => setWorkflowActionForm(null)} onChange={setWorkflowActionForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPageWorkflowAction(c, pageId, payload)))} />
     <JsonActionModal action={jsonAction} loading={actionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
   </View>;
 }
@@ -499,6 +647,72 @@ function ElementEditorModal({ editor, loading, onClose, onChange, onSubmit }: { 
     </ScrollView>
     {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
     <View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={onClose} /><Button title="Save" loading={loading} onPress={() => { const validation = validateElementForm(editor, "update"); if (validation) { setError(validation); return; } onSubmit(editor.element, buildElementUpdatePayload(editor)); }} /></View>
+  </Pressable></Pressable></Modal>;
+}
+
+function DataSourceFormModal({ form, pageId, loading, onClose, onChange, onSubmit }: { form: DataSourceFormState | null; pageId: number; loading?: boolean; onClose: () => void; onChange: (form: DataSourceFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
+  const colors = useColors();
+  const [error, setError] = useState<string | null>(null);
+  React.useEffect(() => setError(null), [form]);
+  if (!form) return null;
+  const option = DATA_SOURCE_OPTIONS.find((item) => item.type === form.type) ?? DATA_SOURCE_OPTIONS[0];
+  const update = (patch: Partial<DataSourceFormState>) => {
+    const next = { ...form, ...patch };
+    if (patch.type) next.name = DATA_SOURCE_OPTIONS.find((item) => item.type === patch.type)?.label ?? next.name;
+    onChange(next);
+    setError(null);
+  };
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}><Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <Text style={[styles.modalTitle, { color: colors.foreground }]}>Create data source</Text>
+    <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>Set up common Application Builder page data sources with guided fields, then use JSON for advanced service options.</Text>
+    <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Data source type</Text>
+      <View style={styles.optionGrid}>{DATA_SOURCE_OPTIONS.map((dataSourceOption) => {
+        const selected = dataSourceOption.type === form.type;
+        return <Pressable key={dataSourceOption.type} onPress={() => update({ type: dataSourceOption.type })} style={[styles.optionCard, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.secondary : colors.background }]}><Feather name={dataSourceOption.icon} size={16} color={selected ? colors.primary : colors.mutedForeground} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: colors.foreground }]}>{dataSourceOption.label}</Text><Text style={[styles.optionMeta, { color: colors.mutedForeground }]}>{dataSourceOption.description}</Text></View></Pressable>;
+      })}</View>
+      <FormInput label="Name" value={form.name} onChangeText={(name) => update({ name })} />
+      {option.needsTable ? <FormInput label="Table ID" value={form.tableId} onChangeText={(tableId) => update({ tableId })} keyboardType="number-pad" /> : null}
+      {option.needsRow ? <FormInput label="Row ID" value={form.rowId} onChangeText={(rowId) => update({ rowId })} keyboardType="number-pad" /> : null}
+      {option.needsTable ? <FormInput label="Integration ID (optional)" value={form.integrationId} onChangeText={(integrationId) => update({ integrationId })} keyboardType="number-pad" /> : null}
+      {option.needsUrl ? <FormInput label="Request URL" value={form.url} onChangeText={(url) => update({ url })} autoCapitalize="none" placeholder="https://example.com/api" /> : null}
+      <FormInput label="Advanced JSON overrides" value={form.advancedJson} onChangeText={(advancedJson) => update({ advancedJson })} multiline />
+    </ScrollView>
+    {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
+    <View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={onClose} /><Button title="Create" loading={loading} onPress={() => { const validation = validateSetupForm("dataSource", form, pageId); if (validation) { setError(validation); return; } onSubmit(buildDataSourcePayload(form, pageId)); }} /></View>
+  </Pressable></Pressable></Modal>;
+}
+
+function WorkflowActionFormModal({ form, dataSources, pageId, loading, onClose, onChange, onSubmit }: { form: WorkflowActionFormState | null; dataSources: BaserowDataSource[]; pageId: number; loading?: boolean; onClose: () => void; onChange: (form: WorkflowActionFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
+  const colors = useColors();
+  const [error, setError] = useState<string | null>(null);
+  React.useEffect(() => setError(null), [form]);
+  if (!form) return null;
+  const option = WORKFLOW_ACTION_OPTIONS.find((item) => item.type === form.type) ?? WORKFLOW_ACTION_OPTIONS[0];
+  const update = (patch: Partial<WorkflowActionFormState>) => {
+    const next = { ...form, ...patch };
+    if (patch.type) next.title = WORKFLOW_ACTION_OPTIONS.find((item) => item.type === patch.type)?.label ?? next.title;
+    onChange(next);
+    setError(null);
+  };
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}><Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <Text style={[styles.modalTitle, { color: colors.foreground }]}>Create workflow action</Text>
+    <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>Configure common button/page workflow actions using native fields.</Text>
+    <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Action type</Text>
+      <View style={styles.optionGrid}>{WORKFLOW_ACTION_OPTIONS.map((actionOption) => {
+        const selected = actionOption.type === form.type;
+        return <Pressable key={actionOption.type} onPress={() => update({ type: actionOption.type })} style={[styles.optionCard, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.secondary : colors.background }]}><Feather name={actionOption.icon} size={16} color={selected ? colors.primary : colors.mutedForeground} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: colors.foreground }]}>{actionOption.label}</Text><Text style={[styles.optionMeta, { color: colors.mutedForeground }]}>{actionOption.description}</Text></View></Pressable>;
+      })}</View>
+      <FormInput label="Event" value={form.event} onChangeText={(event) => update({ event })} placeholder="click" autoCapitalize="none" />
+      {option.needsMessage ? <FormInput label="Title" value={form.title} onChangeText={(title) => update({ title })} /> : null}
+      {option.needsMessage ? <FormInput label="Description" value={form.description} onChangeText={(description) => update({ description })} multiline /> : null}
+      {option.needsUrl ? <FormInput label="Destination/request URL" value={form.url} onChangeText={(url) => update({ url })} autoCapitalize="none" placeholder="https://example.com" /> : null}
+      {option.needsDataSource ? <View style={styles.formBlock}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Data source</Text><View style={styles.optionGrid}>{dataSources.map((source) => <Pressable key={source.id} onPress={() => update({ dataSourceId: String(source.id) })} style={[styles.optionCard, { borderColor: form.dataSourceId === String(source.id) ? colors.primary : colors.border, backgroundColor: form.dataSourceId === String(source.id) ? colors.secondary : colors.background }]}><Feather name="database" size={16} color={form.dataSourceId === String(source.id) ? colors.primary : colors.mutedForeground} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: colors.foreground }]}>{source.name || `${source.type} #${source.id}`}</Text><Text style={[styles.optionMeta, { color: colors.mutedForeground }]}>#{source.id}</Text></View></Pressable>)}</View><FormInput label="Or data source ID" value={form.dataSourceId} onChangeText={(dataSourceId) => update({ dataSourceId })} keyboardType="number-pad" /></View> : null}
+      <FormInput label="Advanced JSON overrides" value={form.advancedJson} onChangeText={(advancedJson) => update({ advancedJson })} multiline />
+    </ScrollView>
+    {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
+    <View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={onClose} /><Button title="Create" loading={loading} onPress={() => { const validation = validateSetupForm("workflowAction", form, pageId); if (validation) { setError(validation); return; } onSubmit(buildWorkflowActionPayload(form)); }} /></View>
   </Pressable></Pressable></Modal>;
 }
 

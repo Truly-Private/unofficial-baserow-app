@@ -93,8 +93,8 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Add guided create-element flow for common element types.
 - [x] Add element property editor panels.
 - [x] Add drag/drop or move controls for element layout/order.
-- [ ] Add guided data-source setup forms.
-- [ ] Add guided workflow-action setup forms.
+- [x] Add guided data-source setup forms.
+- [x] Add guided workflow-action setup forms.
 - [ ] Add auth/user-source setup forms.
 - [ ] Add custom CSS endpoint support.
 - [ ] Add custom JS endpoint support.
@@ -108,5 +108,5 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Checkpoint 3: Automation guided node picker and native node forms.
 - [x] Checkpoint 4: Automation run detail and publish validation.
 - [x] Checkpoint 5: Application Builder element palette and property panels.
-- [ ] Checkpoint 6: Application Builder data-source/action setup forms.
+- [x] Checkpoint 6: Application Builder data-source/action setup forms.
 - [ ] Checkpoint 7: Application Builder preview renderer and custom code endpoints.
