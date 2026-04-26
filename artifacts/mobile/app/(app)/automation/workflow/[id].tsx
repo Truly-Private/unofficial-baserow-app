@@ -355,6 +355,7 @@ export default function WorkflowScreen() {
         </View>
 
         <Section title="Nodes" icon="git-branch">
+          {nodes.length > 0 ? <WorkflowMap nodes={nodes} /> : null}
           {nodes.length === 0 ? (
             <View style={styles.emptyBlock}>
               <EmptyState icon="git-branch" title="No nodes" description="Add trigger/action nodes with the guided mobile picker or the advanced JSON action." />
@@ -419,6 +420,48 @@ function NodeSummary({ node }: { node: BaserowAutomationNode }) {
       <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{option.kind}</Text>
       <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>{option.description}</Text>
       {node.table_id ? <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>Table ID: {String(node.table_id)}</Text> : null}
+    </View>
+  );
+}
+
+function WorkflowMap({ nodes }: { nodes: BaserowAutomationNode[] }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.flowMap, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+      <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
+        Visual flow
+      </Text>
+      {nodes.map((node, index) => {
+        const option = optionForNodeType(node.type);
+        return (
+          <View key={node.id}>
+            <View style={styles.flowNode}>
+              <View style={[styles.iconWrap, { backgroundColor: option.kind === "trigger" ? colors.primary : colors.secondary }]}>
+                <Feather
+                  name={option.icon}
+                  size={15}
+                  color={option.kind === "trigger" ? colors.primaryForeground : colors.primary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.itemTitle, { color: colors.foreground }]}>
+                  {node.name || option.label}
+                </Text>
+                <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>
+                  {option.kind} · {node.type}
+                  {node.previous_node_id ? ` · after #${node.previous_node_id}` : ""}
+                </Text>
+              </View>
+            </View>
+            {index < nodes.length - 1 ? (
+              <View style={styles.flowConnector}>
+                <View style={[styles.flowConnectorLine, { backgroundColor: colors.border }]} />
+                <Feather name="arrow-down" size={14} color={colors.mutedForeground} />
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -611,6 +654,10 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
   pillText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   nodeSummary: { borderTopWidth: 1, marginTop: 12, paddingTop: 12, gap: 4 },
+  flowMap: { borderWidth: 1, padding: 14, marginBottom: 10 },
+  flowNode: { flexDirection: "row", alignItems: "center", gap: 12 },
+  flowConnector: { alignItems: "center", paddingVertical: 8 },
+  flowConnectorLine: { width: 2, height: 16, borderRadius: 1 },
   summaryLabel: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.6 },
   summaryText: { fontSize: 13, lineHeight: 18, fontFamily: "Inter_400Regular" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 18 },

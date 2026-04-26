@@ -56,8 +56,8 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Add guided trigger/action node picker.
 - [x] Add native configuration form for common trigger nodes.
 - [x] Add native configuration form for common action nodes.
-- [ ] Add visual workflow/branch layout.
-- [ ] Add parent/previous-node selection UI for moving nodes.
+- [x] Add visual workflow/branch layout.
+- [x] Add parent/previous-node selection UI for moving nodes.
 - [ ] Add test result detail viewer.
 - [x] Add publish validation and preflight warnings.
 - [x] Add run history detail screen.
