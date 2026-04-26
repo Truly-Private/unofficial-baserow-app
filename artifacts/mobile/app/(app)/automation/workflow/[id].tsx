@@ -246,6 +246,11 @@ export default function WorkflowScreen() {
   const [nodeForm, setNodeForm] = React.useState<NodeFormState | null>(null);
   const [selectedHistory, setSelectedHistory] =
     React.useState<BaserowAutomationHistoryItem | null>(null);
+  const [testResult, setTestResult] = React.useState<{
+    title: string;
+    description: string;
+    payload: unknown;
+  } | null>(null);
 
   const workflowQuery = useQuery({
     queryKey: ["automationWorkflow", workflowId],
@@ -262,7 +267,14 @@ export default function WorkflowScreen() {
 
   const testMutation = useMutation({
     mutationFn: () => apiCall((c) => testAutomationWorkflow(c, workflowId)),
-    onSuccess: () => Alert.alert("Workflow test started", "Baserow accepted the test request."),
+    onSuccess: async (result) => {
+      setTestResult({
+        title: "Workflow test result",
+        description: "Baserow accepted the workflow test request. Review the response payload below.",
+        payload: result,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["automationWorkflow", workflowId, "history"] });
+    },
     onError: (error) => Alert.alert("Could not test workflow", error instanceof Error ? error.message : "Please try again."),
   });
   const publishMutation = useMutation({
@@ -275,7 +287,13 @@ export default function WorkflowScreen() {
   });
   const simulateMutation = useMutation({
     mutationFn: (nodeId: number) => apiCall((c) => simulateDispatchAutomationNode(c, nodeId)),
-    onSuccess: () => Alert.alert("Node simulated", "Baserow accepted the simulation request."),
+    onSuccess: (result, nodeId) => {
+      setTestResult({
+        title: "Node simulation result",
+        description: `Baserow accepted the simulation request for node #${nodeId}. Review the response payload below.`,
+        payload: result,
+      });
+    },
     onError: (error) => Alert.alert("Could not simulate node", error instanceof Error ? error.message : "Please try again."),
   });
   const nodeActionMutation = useMutation({
@@ -409,6 +427,7 @@ export default function WorkflowScreen() {
     />
     <JsonActionModal action={jsonAction} loading={nodeActionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
     <RunHistoryModal item={selectedHistory} onClose={() => setSelectedHistory(null)} />
+    <TestResultModal result={testResult} onClose={() => setTestResult(null)} />
   </View>;
 }
 
@@ -494,6 +513,39 @@ function RunHistoryModal({
           <ScrollView style={styles.modalScroll}>
             <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]}>
               {JSON.stringify(item, null, 2)}
+            </Text>
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <Button title="Close" onPress={onClose} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function TestResultModal({
+  result,
+  onClose,
+}: {
+  result: { title: string; description: string; payload: unknown } | null;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  if (!result) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}>
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+            {result.title}
+          </Text>
+          <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>
+            {result.description}
+          </Text>
+          <ScrollView style={styles.modalScroll}>
+            <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]}>
+              {JSON.stringify(result.payload ?? {}, null, 2)}
             </Text>
           </ScrollView>
           <View style={styles.modalActions}>
