@@ -422,6 +422,8 @@ function AddFieldModal({
   );
 }
 
+type EditableOption = { id?: number; value: string; color: string };
+
 function EditFieldModal({
   visible,
   field,
@@ -438,17 +440,102 @@ function EditFieldModal({
   loading: boolean;
 }) {
   const [name, setName] = useState(field.name);
+  const [options, setOptions] = useState<EditableOption[]>(
+    (field.select_options ?? []).map((o) => ({
+      id: o.id,
+      value: o.value,
+      color: o.color,
+    })),
+  );
+  const [newOptionValue, setNewOptionValue] = useState("");
+  const [newOptionColor, setNewOptionColor] = useState("blue");
+
+  const isSelectType =
+    field.type === "single_select" || field.type === "multiple_select";
+
+  // Reset state whenever a different field is opened
+  useEffect(() => {
+    if (visible) {
+      setName(field.name);
+      setOptions(
+        (field.select_options ?? []).map((o) => ({
+          id: o.id,
+          value: o.value,
+          color: o.color,
+        })),
+      );
+      setNewOptionValue("");
+      setNewOptionColor("blue");
+    }
+  }, [visible, field]);
+
+  function handleAddOption() {
+    const trimmed = newOptionValue.trim();
+    if (!trimmed) return;
+    setOptions((prev) => [...prev, { value: trimmed, color: newOptionColor }]);
+    setNewOptionValue("");
+    setNewOptionColor("blue");
+  }
+
+  function handleRemoveOption(index: number) {
+    setOptions((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleUpdateOptionValue(index: number, value: string) {
+    setOptions((prev) =>
+      prev.map((o, i) => (i === index ? { ...o, value } : o)),
+    );
+  }
+
+  function handleUpdateOptionColor(index: number, color: string) {
+    setOptions((prev) =>
+      prev.map((o, i) => (i === index ? { ...o, color } : o)),
+    );
+  }
+
+  // Compute whether anything has changed
+  const originalOptions = field.select_options ?? [];
+  const optionsChanged =
+    isSelectType &&
+    (originalOptions.length !== options.length ||
+      options.some((opt, i) => {
+        const orig = originalOptions[i];
+        return (
+          !orig ||
+          orig.id !== opt.id ||
+          orig.value !== opt.value ||
+          orig.color !== opt.color
+        );
+      }));
+  const nameChanged = name.trim() !== field.name && name.trim().length > 0;
+  const hasChanges = nameChanged || optionsChanged;
 
   function handleSubmit() {
-    if (!name.trim() || name === field.name) return;
-    onUpdate({ name: name.trim() });
+    if (!name.trim() || !hasChanges) return;
+    const payload: {
+      name?: string;
+      select_options?: EditableOption[];
+    } = {};
+    if (nameChanged) payload.name = name.trim();
+    if (optionsChanged) {
+      payload.select_options = options.map((o) =>
+        o.id != null
+          ? { id: o.id, value: o.value, color: o.color }
+          : { value: o.value, color: o.color },
+      );
+    }
+    onUpdate(payload);
   }
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <View style={styles.modalScrollContent}>
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.modalTitle}>Edit Column</Text>
 
             <Text style={styles.inputLabel}>Name</Text>
@@ -458,6 +545,92 @@ function EditFieldModal({
               onChangeText={setName}
               placeholder="Column name"
             />
+
+            {isSelectType && (
+              <View style={styles.optionsSection}>
+                <Text style={styles.inputLabel}>Options</Text>
+
+                {options.map((opt, idx) => (
+                  <View key={opt.id ?? `new-${idx}`} style={styles.editOptionCard}>
+                    <View style={styles.editOptionTopRow}>
+                      <View
+                        style={[
+                          styles.optionColorDot,
+                          {
+                            backgroundColor:
+                              OPTION_COLORS.find((c) => c.value === opt.color)
+                                ?.hex ?? "#888",
+                          },
+                        ]}
+                      />
+                      <TextInput
+                        style={[styles.input, styles.editOptionInput]}
+                        value={opt.value}
+                        onChangeText={(t) => handleUpdateOptionValue(idx, t)}
+                        placeholder="Option label"
+                      />
+                      <TouchableOpacity
+                        onPress={() => handleRemoveOption(idx)}
+                        style={styles.removeOptionBtn}
+                      >
+                        <Text style={styles.removeOptionText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.colorPickerRow}>
+                      {OPTION_COLORS.map((c) => (
+                        <TouchableOpacity
+                          key={c.value}
+                          onPress={() => handleUpdateOptionColor(idx, c.value)}
+                          style={[
+                            styles.colorSwatch,
+                            { backgroundColor: c.hex },
+                            opt.color === c.value && styles.colorSwatchSelected,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ))}
+
+                <Text style={[styles.inputLabel, { marginTop: 8 }]}>
+                  Add Option
+                </Text>
+                <View style={styles.newOptionRow}>
+                  <TextInput
+                    style={[styles.input, styles.newOptionInput]}
+                    value={newOptionValue}
+                    onChangeText={setNewOptionValue}
+                    placeholder="Option label"
+                    returnKeyType="done"
+                    onSubmitEditing={handleAddOption}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.addOptionBtn,
+                      !newOptionValue.trim() && styles.submitBtnDisabled,
+                    ]}
+                    onPress={handleAddOption}
+                    disabled={!newOptionValue.trim()}
+                  >
+                    <Text style={styles.addOptionBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.colorPickerRow}>
+                  {OPTION_COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.value}
+                      onPress={() => setNewOptionColor(c.value)}
+                      style={[
+                        styles.colorSwatch,
+                        { backgroundColor: c.hex },
+                        newOptionColor === c.value && styles.colorSwatchSelected,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
@@ -470,10 +643,10 @@ function EditFieldModal({
                 <TouchableOpacity
                   style={[
                     styles.submitBtn,
-                    (name === field.name || !name.trim()) && styles.submitBtnDisabled,
+                    (!hasChanges || !name.trim()) && styles.submitBtnDisabled,
                   ]}
                   onPress={handleSubmit}
-                  disabled={name === field.name || !name.trim() || loading}
+                  disabled={!hasChanges || !name.trim() || loading}
                 >
                   <Text style={styles.submitBtnText}>
                     {loading ? "Saving..." : "Save"}
@@ -481,7 +654,7 @@ function EditFieldModal({
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -714,6 +887,20 @@ const styles = StyleSheet.create({
   removeOptionText: {
     fontSize: 14,
     color: "#999",
+  },
+  editOptionCard: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  editOptionTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editOptionInput: {
+    flex: 1,
+    marginBottom: 0,
   },
   newOptionRow: {
     flexDirection: "row",

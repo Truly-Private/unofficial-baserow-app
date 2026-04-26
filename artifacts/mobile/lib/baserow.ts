@@ -511,7 +511,7 @@ export async function updateField(
     number_decimal_places?: number;
     date_include_time?: boolean;
     date_format?: string;
-    select_options?: { value: string; color: string }[];
+    select_options?: { id?: number; value: string; color: string }[];
   }>,
 ): Promise<BaserowField> {
   return request<BaserowField>(
