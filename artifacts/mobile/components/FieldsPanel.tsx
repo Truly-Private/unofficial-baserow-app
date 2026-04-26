@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { createField, updateField, deleteField, listFields, type BaserowField, type BaserowFieldType } from "@/lib/baserow";
+
+// Preset colors for select options (matching Baserow's palette)
+const OPTION_COLORS: { label: string; value: string; hex: string }[] = [
+  { label: "Blue", value: "blue", hex: "#4B73B0" },
+  { label: "Red", value: "red", hex: "#D94035" },
+  { label: "Green", value: "green", hex: "#3D9A6A" },
+  { label: "Yellow", value: "yellow", hex: "#E6C040" },
+  { label: "Orange", value: "orange", hex: "#E07B39" },
+  { label: "Purple", value: "purple", hex: "#8A63B4" },
+  { label: "Pink", value: "pink", hex: "#D45B8A" },
+  { label: "Cyan", value: "cyan", hex: "#3AACBB" },
+  { label: "Gray", value: "gray", hex: "#A0A0A0" },
+  { label: "Dark", value: "dark", hex: "#333333" },
+];
 
 // Available field types in Baserow
 const FIELD_TYPES: { type: BaserowFieldType; label: string; icon: string }[] = [
@@ -210,6 +224,14 @@ export function FieldsPanel({
   );
 }
 
+type DraftOption = { value: string; color: string };
+
+type CreateFieldPayload = {
+  name: string;
+  type: BaserowFieldType;
+  select_options?: DraftOption[];
+};
+
 function AddFieldModal({
   visible,
   onClose,
@@ -218,73 +240,171 @@ function AddFieldModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (payload: any) => void;
+  onSubmit: (payload: CreateFieldPayload) => void;
   loading: boolean;
 }) {
   const [name, setName] = useState("");
   const [fieldType, setFieldType] = useState<BaserowFieldType>("text");
+  const [draftOptions, setDraftOptions] = useState<DraftOption[]>([]);
+  const [newOptionValue, setNewOptionValue] = useState("");
+  const [newOptionColor, setNewOptionColor] = useState("blue");
+
+  const isSelectType =
+    fieldType === "single_select" || fieldType === "multiple_select";
+
+  // Reset all state when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setName("");
+      setFieldType("text");
+      setDraftOptions([]);
+      setNewOptionValue("");
+      setNewOptionColor("blue");
+    }
+  }, [visible]);
+
+  function handleAddOption() {
+    const trimmed = newOptionValue.trim();
+    if (!trimmed) return;
+    setDraftOptions((prev) => [...prev, { value: trimmed, color: newOptionColor }]);
+    setNewOptionValue("");
+    setNewOptionColor("blue");
+  }
+
+  function handleRemoveOption(index: number) {
+    setDraftOptions((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function handleSubmit() {
     if (!name.trim()) return;
-    onSubmit({ name: name.trim(), type: fieldType });
+    const payload: CreateFieldPayload = { name: name.trim(), type: fieldType };
+    if (isSelectType && draftOptions.length > 0) {
+      payload.select_options = draftOptions;
+    }
+    onSubmit(payload);
   }
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Add Column</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Column</Text>
 
-          <Text style={styles.inputLabel}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Column name"
-            autoFocus
-          />
+            <Text style={styles.inputLabel}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Column name"
+              autoFocus
+            />
 
-          <Text style={styles.inputLabel}>Type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.typeRow}>
-              {FIELD_TYPES.map((ft) => (
-                <TouchableOpacity
-                  key={ft.type}
-                  style={[
-                    styles.typeBtn,
-                    fieldType === ft.type && styles.typeBtnActive,
-                  ]}
-                  onPress={() => setFieldType(ft.type)}
-                >
-                  <Text style={styles.typeIcon}>{ft.icon}</Text>
-                  <Text
+            <Text style={styles.inputLabel}>Type</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.typeRow}>
+                {FIELD_TYPES.map((ft) => (
+                  <TouchableOpacity
+                    key={ft.type}
                     style={[
-                      styles.typeLabel,
-                      fieldType === ft.type && styles.typeLabelActive,
+                      styles.typeBtn,
+                      fieldType === ft.type && styles.typeBtnActive,
                     ]}
+                    onPress={() => setFieldType(ft.type)}
                   >
-                    {ft.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+                    <Text style={styles.typeIcon}>{ft.icon}</Text>
+                    <Text
+                      style={[
+                        styles.typeLabel,
+                        fieldType === ft.type && styles.typeLabelActive,
+                      ]}
+                    >
+                      {ft.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, !name.trim() && styles.submitBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={!name.trim() || loading}
-            >
-              <Text style={styles.submitBtnText}>
-                {loading ? "Adding..." : "Add"}
-              </Text>
-            </TouchableOpacity>
+            {isSelectType && (
+              <View style={styles.optionsSection}>
+                <Text style={styles.inputLabel}>Options</Text>
+
+                {draftOptions.map((opt, idx) => (
+                  <View key={idx} style={styles.draftOptionRow}>
+                    <View
+                      style={[
+                        styles.optionColorDot,
+                        {
+                          backgroundColor:
+                            OPTION_COLORS.find((c) => c.value === opt.color)
+                              ?.hex ?? "#888",
+                        },
+                      ]}
+                    />
+                    <Text style={styles.draftOptionLabel}>{opt.value}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveOption(idx)}
+                      style={styles.removeOptionBtn}
+                    >
+                      <Text style={styles.removeOptionText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <View style={styles.newOptionRow}>
+                  <TextInput
+                    style={[styles.input, styles.newOptionInput]}
+                    value={newOptionValue}
+                    onChangeText={setNewOptionValue}
+                    placeholder="Option label"
+                    returnKeyType="done"
+                    onSubmitEditing={handleAddOption}
+                  />
+                  <TouchableOpacity
+                    style={styles.addOptionBtn}
+                    onPress={handleAddOption}
+                    disabled={!newOptionValue.trim()}
+                  >
+                    <Text style={styles.addOptionBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.colorPickerRow}>
+                  {OPTION_COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.value}
+                      onPress={() => setNewOptionColor(c.value)}
+                      style={[
+                        styles.colorSwatch,
+                        { backgroundColor: c.hex },
+                        newOptionColor === c.value && styles.colorSwatchSelected,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, !name.trim() && styles.submitBtnDisabled]}
+                onPress={handleSubmit}
+                disabled={!name.trim() || loading}
+              >
+                <Text style={styles.submitBtnText}>
+                  {loading ? "Adding..." : "Add"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -443,6 +563,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+  },
   modalContent: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -536,5 +662,73 @@ const styles = StyleSheet.create({
   rightActions: {
     flexDirection: "row",
     gap: 10,
+  },
+  // Select options editor styles
+  optionsSection: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  draftOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  optionColorDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 8,
+  },
+  draftOptionLabel: {
+    flex: 1,
+    fontSize: 14,
+  },
+  removeOptionBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  removeOptionText: {
+    fontSize: 14,
+    color: "#999",
+  },
+  newOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  newOptionInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  addOptionBtn: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  addOptionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  colorPickerRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  colorSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  colorSwatchSelected: {
+    borderColor: "#333",
   },
 });
