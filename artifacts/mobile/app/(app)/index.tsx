@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as WebBrowser from "expo-web-browser";
 import {
   useMutation,
   useQuery,
@@ -184,6 +185,20 @@ function getApplicationMeta(app: BaserowApplication) {
   };
 }
 
+function getApplicationWebUrl(baseUrl: string, app: { id: number; type: BaserowApplicationType }) {
+  const base = baseUrl.replace(/\/+$/, "");
+  switch (app.type) {
+    case "builder":
+      return `${base}/builder/${app.id}`;
+    case "dashboard":
+      return `${base}/dashboard/${app.id}`;
+    case "automation":
+      return `${base}/automation/${app.id}`;
+    default:
+      return base;
+  }
+}
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -314,7 +329,17 @@ export default function WorkspacesScreen() {
       }
       Alert.alert(
         `${draft.option.label} created`,
-        `"${application.name}" was added to ${draft.workspaceName}. Opening this type in mobile is coming next.`,
+        `"${application.name}" was added to ${draft.workspaceName}. Opening in browser...`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Open",
+            onPress: () =>
+              void WebBrowser.openBrowserAsync(
+                getApplicationWebUrl(creds.baseUrl, application),
+              ),
+          },
+        ],
       );
     },
     onError: (error) => {
@@ -501,11 +526,7 @@ export default function WorkspacesScreen() {
       return;
     }
 
-    const meta = getApplicationMeta(app);
-    Alert.alert(
-      app.name,
-      `${meta.hint} creation is now available on mobile. Opening and editing this type in mobile is coming next.`,
-    );
+    void WebBrowser.openBrowserAsync(getApplicationWebUrl(creds.baseUrl, app));
   };
 
   const pickImportFile = async () => {
