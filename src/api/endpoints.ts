@@ -34,6 +34,16 @@ export const Endpoints = {
       `${API_BASE}/database/databases/${dbId}/tables/${tableId}/fields/`,
     detail: (dbId: string, tableId: string, fieldId: string) =>
       `${API_BASE}/database/databases/${dbId}/tables/${tableId}/fields/${fieldId}/`,
+    tableList: (tableId: string | number) =>
+      `${API_BASE}/database/fields/table/${tableId}/`,
+    fieldDetail: (fieldId: string | number) =>
+      `${API_BASE}/database/fields/${fieldId}/`,
+  },
+  selectOptions: {
+    list: (fieldId: string | number) =>
+      `${API_BASE}/database/fields/${fieldId}/select-options/`,
+    detail: (fieldId: string | number, optionId: string | number) =>
+      `${API_BASE}/database/fields/${fieldId}/select-options/${optionId}/`,
   },
   attachments: {
     upload: (dbId: string, tableId: string, rowId: string) =>

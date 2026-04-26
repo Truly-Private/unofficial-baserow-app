@@ -140,6 +140,65 @@ export async function fetchTableFields(
   return client.get(Endpoints.fields.list(dbId, tableId));
 }
 
+// Select option CRUD helpers
+// Baserow manages select options through the field PATCH endpoint.
+// Providing the full select_options array replaces all options:
+//   - items with an id are updated
+//   - items without an id are created
+//   - previously-existing items omitted from the array are deleted
+
+export interface SelectOptionPayload {
+  id?: number;
+  value: string;
+  color: string;
+}
+
+export async function getFieldWithOptions(
+  client: ApiClient,
+  fieldId: string | number,
+) {
+  return client.get(Endpoints.fields.fieldDetail(fieldId));
+}
+
+export async function addSelectOption(
+  client: ApiClient,
+  fieldId: string | number,
+  option: Omit<SelectOptionPayload, "id">,
+  currentOptions: SelectOptionPayload[],
+) {
+  const select_options = [...currentOptions, option];
+  return client.patch(Endpoints.fields.fieldDetail(fieldId), {
+    select_options,
+  });
+}
+
+export async function updateSelectOption(
+  client: ApiClient,
+  fieldId: string | number,
+  optionId: number,
+  changes: Partial<Omit<SelectOptionPayload, "id">>,
+  currentOptions: SelectOptionPayload[],
+) {
+  const select_options = currentOptions.map((o) =>
+    o.id === optionId ? { ...o, ...changes } : o,
+  );
+  return client.patch(Endpoints.fields.fieldDetail(fieldId), {
+    select_options,
+  });
+}
+
+export async function deleteSelectOption(
+  client: ApiClient,
+  fieldId: string | number,
+  optionId: number,
+  currentOptions: SelectOptionPayload[],
+) {
+  const select_options = currentOptions.filter((o) => o.id !== optionId);
+  return client.patch(Endpoints.fields.fieldDetail(fieldId), {
+    select_options,
+  });
+}
+
 // Field type union for TypeScript
 type FieldType =
   | "text"
@@ -151,4 +210,6 @@ type FieldType =
   | "lookup"
   | "formula"
   | "richtext"
-  | "datetime";
+  | "datetime"
+  | "single_select"
+  | "multiple_select";
