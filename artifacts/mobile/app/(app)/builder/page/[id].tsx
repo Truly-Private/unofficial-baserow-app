@@ -527,6 +527,10 @@ export default function BuilderPageScreen() {
           </View>
         </View>
 
+        <Section title="Mobile preview" icon="eye">
+          <PagePreview pageName={pageName} elements={elements} />
+        </Section>
+
         <Section title="Element palette" icon="plus-square">
           <View style={styles.paletteGrid}>
             {ELEMENT_OPTIONS.map((option) => (
@@ -590,6 +594,36 @@ function ElementPropertyPreview({ element }: { element: BaserowBuilderElement })
   ].filter(Boolean);
   if (details.length === 0) return null;
   return <View style={[styles.previewBox, { borderColor: colors.border }]}>{details.map((detail) => <Text key={detail} style={[styles.previewText, { color: colors.mutedForeground }]}>{detail}</Text>)}</View>;
+}
+
+function PagePreview({ pageName, elements }: { pageName: string; elements: BaserowBuilderElement[] }) {
+  const colors = useColors();
+  const rootElements = elements.filter((element) => !element.parent_element_id);
+  return <View style={[styles.phonePreview, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <View style={[styles.previewNav, { borderColor: colors.border }]}>
+      <Feather name="smartphone" size={15} color={colors.primary} />
+      <Text style={[styles.previewNavTitle, { color: colors.foreground }]}>{pageName}</Text>
+      <Text style={[styles.previewNavMeta, { color: colors.mutedForeground }]}>{elements.length} blocks</Text>
+    </View>
+    <View style={styles.previewCanvas}>
+      {rootElements.length === 0 ? <Text style={[styles.previewText, { color: colors.mutedForeground }]}>Add elements to see a mobile page preview.</Text> : rootElements.map((element) => <RenderedElement key={element.id} element={element} />)}
+    </View>
+  </View>;
+}
+
+function RenderedElement({ element }: { element: BaserowBuilderElement }) {
+  const colors = useColors();
+  const type = element.type;
+  const value = formulaToText(element.value ?? element.label ?? element.submit_button_label ?? element.button_load_more_label) || element.name || optionForElementType(type).label;
+  if (type === "heading") return <Text style={[styles.previewHeading, { color: colors.foreground }]}>{value}</Text>;
+  if (type === "text") return <Text style={[styles.previewParagraph, { color: colors.mutedForeground }]}>{value}</Text>;
+  if (type === "button") return <View style={[styles.previewButton, { backgroundColor: colors.primary, borderRadius: colors.radius }]}><Text style={[styles.previewButtonText, { color: colors.primaryForeground }]}>{value}</Text></View>;
+  if (type === "link") return <Text style={[styles.previewLink, { color: colors.primary }]}>{value} →</Text>;
+  if (type === "image") return <View style={[styles.previewImage, { backgroundColor: colors.secondary, borderRadius: colors.radius }]}><Feather name="image" size={18} color={colors.primary} /><Text style={[styles.previewText, { color: colors.mutedForeground }]} numberOfLines={1}>{formulaToText(element.image_url) || "Image"}</Text></View>;
+  if (type === "input_text") return <View style={[styles.previewInput, { borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.previewText, { color: colors.mutedForeground }]}>{value}</Text></View>;
+  if (type === "table") return <View style={[styles.previewTable, { borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.previewText, { color: colors.foreground }]}>Table data source #{String(element.data_source_id ?? "—")}</Text><View style={[styles.previewTableRow, { backgroundColor: colors.secondary }]} /></View>;
+  if (type === "form_container" || type === "simple_container") return <View style={[styles.previewContainer, { borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.previewText, { color: colors.mutedForeground }]}>{value}</Text></View>;
+  return <View style={[styles.previewContainer, { borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.previewText, { color: colors.mutedForeground }]}>{type}</Text></View>;
 }
 
 function ElementFormModal({ form, elements, loading, onClose, onChange, onSubmit }: { form: ElementFormState | null; elements: BaserowBuilderElement[]; loading?: boolean; onClose: () => void; onChange: (form: ElementFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
@@ -745,6 +779,21 @@ const styles = StyleSheet.create({
   itemMeta: { marginTop: 3, fontSize: 13, fontFamily: "Inter_400Regular" },
   previewBox: { borderTopWidth: 1, marginTop: 12, paddingTop: 10, gap: 4 },
   previewText: { fontSize: 12, lineHeight: 17, fontFamily: "Inter_400Regular" },
+  phonePreview: { borderWidth: 1, overflow: "hidden" },
+  previewNav: { borderBottomWidth: 1, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  previewNavTitle: { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold" },
+  previewNavMeta: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  previewCanvas: { padding: 14, gap: 10 },
+  previewHeading: { fontSize: 22, lineHeight: 28, fontFamily: "Inter_700Bold" },
+  previewParagraph: { fontSize: 14, lineHeight: 20, fontFamily: "Inter_400Regular" },
+  previewButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10 },
+  previewButtonText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  previewLink: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  previewImage: { minHeight: 96, alignItems: "center", justifyContent: "center", gap: 6, padding: 12 },
+  previewInput: { minHeight: 44, borderWidth: 1, justifyContent: "center", paddingHorizontal: 12 },
+  previewTable: { borderWidth: 1, padding: 10, gap: 8 },
+  previewTableRow: { height: 32, borderRadius: 8 },
+  previewContainer: { borderWidth: 1, borderStyle: "dashed", padding: 12 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   pill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
   pillText: { fontSize: 12, fontFamily: "Inter_700Bold" },

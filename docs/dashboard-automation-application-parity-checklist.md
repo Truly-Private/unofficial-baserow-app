@@ -96,17 +96,17 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Add guided data-source setup forms.
 - [x] Add guided workflow-action setup forms.
 - [x] Add auth/user-source setup forms.
-- [ ] Add custom CSS endpoint support.
-- [ ] Add custom JS endpoint support.
-- [ ] Add real page preview renderer.
-- [ ] Add mobile-friendly page navigation preview.
+- [x] Add custom CSS endpoint support.
+- [x] Add custom JS endpoint support.
+- [x] Add real page preview renderer.
+- [x] Add mobile-friendly page navigation preview.
 
 ## Recommended build order
 
 - [x] Checkpoint 1: Dashboard guided widget creation and basic widget rendering.
-- [ ] Checkpoint 2: Dashboard data-source picker/setup and widget edit forms.
+- [x] Checkpoint 2: Dashboard data-source picker/setup and widget edit forms.
 - [x] Checkpoint 3: Automation guided node picker and native node forms.
 - [x] Checkpoint 4: Automation run detail and publish validation.
 - [x] Checkpoint 5: Application Builder element palette and property panels.
 - [x] Checkpoint 6: Application Builder data-source/action setup forms.
-- [ ] Checkpoint 7: Application Builder preview renderer and custom code endpoints.
+- [x] Checkpoint 7: Application Builder preview renderer and custom code endpoints.

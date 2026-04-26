@@ -37,6 +37,10 @@ import {
   listPublishedBuilderPageWorkflowActions,
   getPublicBuilderById,
   getPublicBuilderByName,
+  getBuilderCustomCss,
+  getBuilderCustomJs,
+  getPublicBuilderCustomCss,
+  getPublicBuilderCustomJs,
   moveApplicationIntegration,
   orderBuilderDomains,
   orderBuilderPages,
@@ -220,6 +224,24 @@ export default function BuilderScreen() {
         : Promise.resolve(null),
     enabled: !!firstPage && domains.length > 0,
   });
+  const customCssQuery = useQuery({
+    queryKey: ["builder", builderId, "customCode", "css"],
+    queryFn: () => apiCall((c) => getBuilderCustomCss(c, builderId)),
+  });
+  const customJsQuery = useQuery({
+    queryKey: ["builder", builderId, "customCode", "js"],
+    queryFn: () => apiCall((c) => getBuilderCustomJs(c, builderId)),
+  });
+  const publicCustomCssQuery = useQuery({
+    queryKey: ["builder", builderId, "customCode", "css", "public"],
+    queryFn: () => getPublicBuilderCustomCss(builderId, creds.baseUrl),
+    enabled: domains.length > 0,
+  });
+  const publicCustomJsQuery = useQuery({
+    queryKey: ["builder", builderId, "customCode", "js", "public"],
+    queryFn: () => getPublicBuilderCustomJs(builderId, creds.baseUrl),
+    enabled: domains.length > 0,
+  });
   const builderName = builder?.name || fallbackName;
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16) + 24;
 
@@ -234,6 +256,10 @@ export default function BuilderScreen() {
       publishedPageElementsQuery.refetch(),
       publishedPageDataSourcesQuery.refetch(),
       publishedPageActionsQuery.refetch(),
+      customCssQuery.refetch(),
+      customJsQuery.refetch(),
+      publicCustomCssQuery.refetch(),
+      publicCustomJsQuery.refetch(),
     ]);
   };
 
@@ -282,6 +308,29 @@ export default function BuilderScreen() {
             {domains.length > 1 ? <Button title="Save domain order" variant="secondary" onPress={() => actionMutation.mutate(() => apiCall((c) => orderBuilderDomains(c, builderId, domains.map((domain) => domain.id))))} /> : null}
           </View>
         </View>
+
+        <Section title="Mobile navigation preview" icon="smartphone">
+          <Card>
+            <View style={[styles.mobileNavFrame, { borderColor: colors.border, borderRadius: colors.radius }]}>
+              <View style={[styles.mobileNavHeader, { borderColor: colors.border }]}>
+                <Text style={[styles.itemTitle, { color: colors.foreground }]}>{builderName}</Text>
+                <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>{pages.length} pages</Text>
+              </View>
+              <View style={styles.mobileNavList}>
+                {pages.length === 0 ? <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>Create pages to preview mobile navigation.</Text> : pages.map((page, index) => (
+                  <Pressable key={page.id} onPress={() => router.push({ pathname: "/(app)/builder/page/[id]", params: { id: String(page.id), name: page.name, builder: builderName } })} style={[styles.mobileNavItem, { backgroundColor: index === 0 ? colors.secondary : colors.background, borderColor: colors.border, borderRadius: colors.radius }]}>
+                    <Feather name={index === 0 ? "home" : "file"} size={15} color={index === 0 ? colors.primary : colors.mutedForeground} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.mobileNavLabel, { color: colors.foreground }]}>{page.name}</Text>
+                      <Text style={[styles.mobileNavPath, { color: colors.mutedForeground }]}>{page.path || "/"}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </Card>
+        </Section>
 
         <Section title="Pages" icon="file">
           {pages.length === 0 ? <EmptyState icon="file" title="No pages yet" description="Create a page on mobile, then inspect elements and data sources." /> : pages.map((page) => (
@@ -340,6 +389,18 @@ export default function BuilderScreen() {
             </View>
           ))}
         </Section>
+        <Section title="Custom code" icon="code">
+          <Card>
+            <Text style={[styles.itemTitle, { color: colors.foreground }]}>Custom CSS</Text>
+            <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>{customCssQuery.data ? `${customCssQuery.data.length} characters` : "No CSS returned"}</Text>
+            <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={5}>{customCssQuery.data || "/* empty */"}</Text>
+          </Card>
+          <Card>
+            <Text style={[styles.itemTitle, { color: colors.foreground }]}>Custom JavaScript</Text>
+            <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>{customJsQuery.data ? `${customJsQuery.data.length} characters` : "No JavaScript returned"}</Text>
+            <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={5}>{customJsQuery.data || "// empty"}</Text>
+          </Card>
+        </Section>
         <Section title="Published preview" icon="eye">
           {domains.length === 0 ? <EmptyState icon="eye" title="No published domain" description="Publish a domain first to preview public builder endpoints." /> : (
             <>
@@ -364,6 +425,11 @@ export default function BuilderScreen() {
               <Card>
                 <Text style={[styles.itemTitle, { color: colors.foreground }]}>Published page actions</Text>
                 <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={5}>{JSON.stringify(publishedPageActionsQuery.data ?? {}, null, 2)}</Text>
+              </Card>
+              <Card>
+                <Text style={[styles.itemTitle, { color: colors.foreground }]}>Published custom code</Text>
+                <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>CSS: {publicCustomCssQuery.data?.length ?? 0} chars · JS: {publicCustomJsQuery.data?.length ?? 0} chars</Text>
+                <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={5}>{JSON.stringify({ css: publicCustomCssQuery.data ?? "", js: publicCustomJsQuery.data ?? "" }, null, 2)}</Text>
               </Card>
             </>
           )}
@@ -479,4 +545,10 @@ const styles = StyleSheet.create({
   formBlock: { marginTop: 12, gap: 6 },
   fieldLabel: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.5 },
   errorText: { marginTop: 10, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  mobileNavFrame: { borderWidth: 1, overflow: "hidden" },
+  mobileNavHeader: { borderBottomWidth: 1, padding: 12 },
+  mobileNavList: { padding: 10, gap: 8 },
+  mobileNavItem: { borderWidth: 1, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  mobileNavLabel: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  mobileNavPath: { marginTop: 2, fontSize: 12, fontFamily: "Inter_400Regular" },
 });

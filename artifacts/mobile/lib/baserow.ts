@@ -1846,6 +1846,38 @@ export async function getPublicBuilderByName(
   );
 }
 
+export async function getBuilderCustomCss(
+  creds: BaserowCredentials,
+  builderId: number,
+): Promise<string> {
+  return request<string>(creds.baseUrl, `/api/custom_code/${builderId}/css/`, {
+    headers: authHeader(creds),
+  });
+}
+
+export async function getBuilderCustomJs(
+  creds: BaserowCredentials,
+  builderId: number,
+): Promise<string> {
+  return request<string>(creds.baseUrl, `/api/custom_code/${builderId}/js/`, {
+    headers: authHeader(creds),
+  });
+}
+
+export async function getPublicBuilderCustomCss(
+  builderId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<string> {
+  return request<string>(baseUrl, `/api/custom_code/${builderId}/css/public/`);
+}
+
+export async function getPublicBuilderCustomJs(
+  builderId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<string> {
+  return request<string>(baseUrl, `/api/custom_code/${builderId}/js/public/`);
+}
+
 export async function getUserDashboard(
   creds: BaserowCredentials,
 ): Promise<unknown> {
