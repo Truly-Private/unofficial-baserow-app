@@ -59,9 +59,9 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [ ] Add visual workflow/branch layout.
 - [ ] Add parent/previous-node selection UI for moving nodes.
 - [ ] Add test result detail viewer.
-- [ ] Add publish validation and preflight warnings.
-- [ ] Add run history detail screen.
-- [ ] Add error-state display for failed workflow runs.
+- [x] Add publish validation and preflight warnings.
+- [x] Add run history detail screen.
+- [x] Add error-state display for failed workflow runs.
 
 ## Application Builder parity
 
@@ -106,7 +106,7 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Checkpoint 1: Dashboard guided widget creation and basic widget rendering.
 - [ ] Checkpoint 2: Dashboard data-source picker/setup and widget edit forms.
 - [x] Checkpoint 3: Automation guided node picker and native node forms.
-- [ ] Checkpoint 4: Automation run detail and publish validation.
+- [x] Checkpoint 4: Automation run detail and publish validation.
 - [ ] Checkpoint 5: Application Builder element palette and property panels.
 - [ ] Checkpoint 6: Application Builder data-source/action setup forms.
 - [ ] Checkpoint 7: Application Builder preview renderer and custom code endpoints.

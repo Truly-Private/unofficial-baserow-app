@@ -244,6 +244,8 @@ export default function WorkflowScreen() {
     (JsonAction & { run: (payload: Record<string, unknown>) => void }) | null
   >(null);
   const [nodeForm, setNodeForm] = React.useState<NodeFormState | null>(null);
+  const [selectedHistory, setSelectedHistory] =
+    React.useState<BaserowAutomationHistoryItem | null>(null);
 
   const workflowQuery = useQuery({
     queryKey: ["automationWorkflow", workflowId],
@@ -298,6 +300,27 @@ export default function WorkflowScreen() {
   const workflowName = workflowQuery.data?.name || fallbackName;
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16) + 24;
   const refresh = async () => { await Promise.all([workflowQuery.refetch(), nodesQuery.refetch(), historyQuery.refetch()]); };
+  const confirmPublish = () => {
+    if (nodes.length === 0) {
+      Alert.alert(
+        "Cannot publish yet",
+        "Add at least one trigger or action node before publishing this workflow.",
+      );
+      return;
+    }
+
+    const firstNode = nodes[0];
+    const firstNodeOption = optionForNodeType(firstNode.type);
+    const warning =
+      firstNodeOption.kind !== "trigger"
+        ? "The first node does not look like a trigger. Publishing may fail if Baserow requires a trigger first."
+        : "Review node configuration before publishing.";
+
+    Alert.alert("Publish workflow?", `${warning}\n\nNodes: ${nodes.length}`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Publish", onPress: () => publishMutation.mutate() },
+    ]);
+  };
 
   return <View style={[styles.fill, { backgroundColor: colors.background }]}>
     <Stack.Screen options={{ title: workflowName }} />
@@ -310,7 +333,7 @@ export default function WorkflowScreen() {
           <View style={styles.buttonRow}>
             <Button title="New node" onPress={() => setNodeForm(blankNodeForm(nodes))} />
             <Button title="Test" variant="secondary" onPress={() => testMutation.mutate()} loading={testMutation.isPending} />
-            <Button title="Publish" onPress={() => publishMutation.mutate()} loading={publishMutation.isPending} />
+            <Button title="Publish" onPress={confirmPublish} loading={publishMutation.isPending} />
             <Button
               title="Create node JSON"
               variant="secondary"
@@ -351,7 +374,27 @@ export default function WorkflowScreen() {
         </Section>
 
         <Section title="History" icon="clock">
-          {history.length === 0 ? <EmptyState icon="clock" title="No runs yet" description="Workflow test and production runs will show up here." /> : history.map((item) => <Card key={item.id}><Text style={[styles.itemTitle, { color: colors.foreground }]}>{item.status || `Run #${item.id}`}</Text><Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>{item.started_on || item.finished_on || "No timestamp"}</Text></Card>)}
+          {history.length === 0 ? <EmptyState icon="clock" title="No runs yet" description="Workflow test and production runs will show up here." /> : history.map((item) => {
+            const failed = String(item.status ?? "").toLowerCase().includes("fail") || !!item.message;
+            return (
+              <Pressable key={item.id} onPress={() => setSelectedHistory(item)}>
+                <Card>
+                  <View style={styles.rowTop}>
+                    <View style={[styles.iconWrap, { backgroundColor: failed ? colors.destructive : colors.secondary }]}>
+                      <Feather name={failed ? "alert-triangle" : "clock"} size={16} color={failed ? colors.destructiveForeground : colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.itemTitle, { color: colors.foreground }]}>{item.status || `Run #${item.id}`}</Text>
+                      <Text style={[styles.itemMeta, { color: failed ? colors.destructive : colors.mutedForeground }]}>
+                        {item.message || item.started_on || item.finished_on || "No timestamp"}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                  </View>
+                </Card>
+              </Pressable>
+            );
+          })}
         </Section>
       </ScrollView>
     )}
@@ -364,6 +407,7 @@ export default function WorkflowScreen() {
       onSubmit={(payload) => nodeActionMutation.mutate(() => apiCall((c) => createAutomationNode(c, workflowId, payload)))}
     />
     <JsonActionModal action={jsonAction} loading={nodeActionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
+    <RunHistoryModal item={selectedHistory} onClose={() => setSelectedHistory(null)} />
   </View>;
 }
 
@@ -376,6 +420,45 @@ function NodeSummary({ node }: { node: BaserowAutomationNode }) {
       <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>{option.description}</Text>
       {node.table_id ? <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>Table ID: {String(node.table_id)}</Text> : null}
     </View>
+  );
+}
+
+function RunHistoryModal({
+  item,
+  onClose,
+}: {
+  item: BaserowAutomationHistoryItem | null;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  if (!item) return null;
+  const failed = String(item.status ?? "").toLowerCase().includes("fail") || !!item.message;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}>
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+            Run #{item.id}
+          </Text>
+          <Text style={[styles.modalDescription, { color: failed ? colors.destructive : colors.mutedForeground }]}>
+            {item.status || "Unknown status"}
+          </Text>
+          {item.message ? (
+            <Text style={[styles.errorText, { color: colors.destructive }]}>
+              {item.message}
+            </Text>
+          ) : null}
+          <ScrollView style={styles.modalScroll}>
+            <Text style={[styles.jsonPreview, { color: colors.mutedForeground }]}>
+              {JSON.stringify(item, null, 2)}
+            </Text>
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <Button title="Close" onPress={onClose} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -521,6 +604,7 @@ const styles = StyleSheet.create({
   iconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   itemTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   itemMeta: { marginTop: 3, fontSize: 13, fontFamily: "Inter_400Regular" },
+  jsonPreview: { marginTop: 10, fontSize: 12, lineHeight: 18, fontFamily: "Inter_400Regular" },
   smallButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   smallButtonText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
