@@ -19,6 +19,7 @@ import {
   listAssistantChats,
   listAssistantMessages,
   sendAssistantMessage,
+  sendAssistantMessageSimple,
   type AssistantChat,
   type AssistantMessage,
 } from "../../../lib/baserow";
