@@ -287,11 +287,12 @@ function AddFieldModal({
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.modalOverlay}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.modalContent}>
+        <View style={styles.modalContent}>
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.modalTitle}>Add Column</Text>
 
             <Text style={styles.inputLabel}>Name</Text>
@@ -304,30 +305,36 @@ function AddFieldModal({
             />
 
             <Text style={styles.inputLabel}>Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.typeRow}>
-                {FIELD_TYPES.map((ft) => (
-                  <TouchableOpacity
-                    key={ft.type}
+            <View style={styles.typeGrid}>
+              {FIELD_TYPES.map((ft) => (
+                <TouchableOpacity
+                  key={ft.type}
+                  style={[
+                    styles.typeBtn,
+                    fieldType === ft.type && styles.typeBtnActive,
+                  ]}
+                  onPress={() => setFieldType(ft.type)}
+                >
+                  <Text
                     style={[
-                      styles.typeBtn,
-                      fieldType === ft.type && styles.typeBtnActive,
+                      styles.typeIcon,
+                      fieldType === ft.type && styles.typeIconActive,
                     ]}
-                    onPress={() => setFieldType(ft.type)}
                   >
-                    <Text style={styles.typeIcon}>{ft.icon}</Text>
-                    <Text
-                      style={[
-                        styles.typeLabel,
-                        fieldType === ft.type && styles.typeLabelActive,
-                      ]}
-                    >
-                      {ft.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
+                    {ft.icon}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.typeLabel,
+                      fieldType === ft.type && styles.typeLabelActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {ft.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             {isSelectType && (
               <View style={styles.optionsSection}>
@@ -345,7 +352,9 @@ function AddFieldModal({
                         },
                       ]}
                     />
-                    <Text style={styles.draftOptionLabel}>{opt.value}</Text>
+                    <Text style={styles.draftOptionLabel} numberOfLines={1}>
+                      {opt.value}
+                    </Text>
                     <TouchableOpacity
                       onPress={() => handleRemoveOption(idx)}
                       style={styles.removeOptionBtn}
@@ -365,7 +374,10 @@ function AddFieldModal({
                     onSubmitEditing={handleAddOption}
                   />
                   <TouchableOpacity
-                    style={styles.addOptionBtn}
+                    style={[
+                      styles.addOptionBtn,
+                      !newOptionValue.trim() && styles.submitBtnDisabled,
+                    ]}
                     onPress={handleAddOption}
                     disabled={!newOptionValue.trim()}
                   >
@@ -403,8 +415,8 @@ function AddFieldModal({
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
@@ -436,36 +448,38 @@ function EditFieldModal({
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Edit Column</Text>
+          <View style={styles.modalScrollContent}>
+            <Text style={styles.modalTitle}>Edit Column</Text>
 
-          <Text style={styles.inputLabel}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Column name"
-          />
+            <Text style={styles.inputLabel}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Column name"
+            />
 
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-              <Text style={styles.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-            <View style={styles.rightActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+                <Text style={styles.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  (name === field.name || !name.trim()) && styles.submitBtnDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={name === field.name || !name.trim() || loading}
-              >
-                <Text style={styles.submitBtnText}>
-                  {loading ? "Saving..." : "Save"}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.rightActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.submitBtn,
+                    (name === field.name || !name.trim()) && styles.submitBtnDisabled,
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={name === field.name || !name.trim() || loading}
+                >
+                  <Text style={styles.submitBtnText}>
+                    {loading ? "Saving..." : "Save"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -563,18 +577,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
+  modalScrollContent: {
+    padding: 20,
   },
   modalContent: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 20,
     width: "100%",
     maxWidth: 400,
+    maxHeight: "85%",
+    overflow: "hidden",
   },
   modalTitle: {
     fontSize: 20,
@@ -595,18 +607,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
   },
-  typeRow: {
+  typeGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     paddingVertical: 8,
+    marginBottom: 8,
   },
   typeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: "31%",
+    paddingHorizontal: 6,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#ddd",
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 56,
   },
   typeBtnActive: {
     backgroundColor: "#007AFF",
@@ -614,11 +631,16 @@ const styles = StyleSheet.create({
   },
   typeIcon: {
     fontSize: 16,
+    color: "#333",
+  },
+  typeIconActive: {
+    color: "#fff",
   },
   typeLabel: {
     fontSize: 10,
     color: "#666",
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: "center",
   },
   typeLabelActive: {
     color: "#fff",
