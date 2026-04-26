@@ -95,7 +95,7 @@ Track mobile parity for Baserow desktop app surfaces: Dashboard, Automation, and
 - [x] Add drag/drop or move controls for element layout/order.
 - [x] Add guided data-source setup forms.
 - [x] Add guided workflow-action setup forms.
-- [ ] Add auth/user-source setup forms.
+- [x] Add auth/user-source setup forms.
 - [ ] Add custom CSS endpoint support.
 - [ ] Add custom JS endpoint support.
 - [ ] Add real page preview renderer.

@@ -49,6 +49,119 @@ import {
   type BaserowBuilderPage,
 } from "@/lib/baserow";
 
+type IntegrationFormState = {
+  type: "local_baserow" | "smtp" | "ai" | "slack_bot";
+  name: string;
+  host: string;
+  port: string;
+  username: string;
+  password: string;
+  token: string;
+  advancedJson: string;
+};
+
+type UserSourceFormState = {
+  name: string;
+  integrationId: string;
+  tableId: string;
+  emailFieldId: string;
+  nameFieldId: string;
+  roleFieldId: string;
+  advancedJson: string;
+};
+
+const INTEGRATION_OPTIONS = [
+  { type: "local_baserow", label: "Local Baserow", icon: "database" as const, description: "Use the current Baserow instance." },
+  { type: "smtp", label: "SMTP", icon: "mail" as const, description: "Connect email sending settings." },
+  { type: "ai", label: "AI", icon: "cpu" as const, description: "Use workspace AI settings or overrides." },
+  { type: "slack_bot", label: "Slack bot", icon: "slack" as const, description: "Send Slack messages from builder services." },
+] as const;
+
+function parseOptionalObjectJson(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parsePositiveInteger(value: string, label: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${label} must be a positive whole number.`);
+  }
+  return parsed;
+}
+
+function blankIntegrationForm(): IntegrationFormState {
+  return {
+    type: "local_baserow",
+    name: "Local Baserow",
+    host: "",
+    port: "587",
+    username: "",
+    password: "",
+    token: "",
+    advancedJson: "{}",
+  };
+}
+
+function blankUserSourceForm(integrations: { id: number }[]): UserSourceFormState {
+  return {
+    name: "Users",
+    integrationId: integrations[0]?.id ? String(integrations[0].id) : "",
+    tableId: "",
+    emailFieldId: "",
+    nameFieldId: "",
+    roleFieldId: "",
+    advancedJson: "{}",
+  };
+}
+
+function buildIntegrationPayload(form: IntegrationFormState) {
+  const payload: Record<string, unknown> = { type: form.type, name: form.name.trim() || INTEGRATION_OPTIONS.find((option) => option.type === form.type)?.label };
+  if (form.type === "smtp") {
+    if (!form.host.trim()) throw new Error("Add an SMTP host.");
+    payload.host = form.host.trim();
+    payload.port = parsePositiveInteger(form.port, "SMTP port") ?? 587;
+    payload.use_tls = true;
+    if (form.username.trim()) payload.username = form.username.trim();
+    if (form.password.trim()) payload.password = form.password;
+  }
+  if (form.type === "slack_bot") {
+    if (!form.token.trim()) throw new Error("Add a Slack bot token.");
+    payload.token = form.token.trim();
+  }
+  const advanced = parseOptionalObjectJson(form.advancedJson, "Advanced JSON");
+  if (advanced) Object.assign(payload, advanced);
+  return payload;
+}
+
+function buildUserSourcePayload(form: UserSourceFormState) {
+  const integrationId = parsePositiveInteger(form.integrationId, "Integration ID");
+  if (!integrationId) throw new Error("Choose an integration ID.");
+  const payload: Record<string, unknown> = {
+    type: "local_baserow",
+    name: form.name.trim() || "Users",
+    integration_id: integrationId,
+    auth_providers: [],
+  };
+  const tableId = parsePositiveInteger(form.tableId, "Table ID");
+  const emailFieldId = parsePositiveInteger(form.emailFieldId, "Email field ID");
+  const nameFieldId = parsePositiveInteger(form.nameFieldId, "Name field ID");
+  const roleFieldId = parsePositiveInteger(form.roleFieldId, "Role field ID");
+  if (tableId) payload.table_id = tableId;
+  if (emailFieldId) payload.email_field_id = emailFieldId;
+  if (nameFieldId) payload.name_field_id = nameFieldId;
+  if (roleFieldId) payload.role_field_id = roleFieldId;
+  const advanced = parseOptionalObjectJson(form.advancedJson, "Advanced JSON");
+  if (advanced) Object.assign(payload, advanced);
+  return payload;
+}
+
 export default function BuilderScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -62,6 +175,8 @@ export default function BuilderScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [pageName, setPageName] = useState("Untitled page");
   const [jsonAction, setJsonAction] = useState<(JsonAction & { run: (payload: Record<string, unknown>) => void }) | null>(null);
+  const [integrationForm, setIntegrationForm] = useState<IntegrationFormState | null>(null);
+  const [userSourceForm, setUserSourceForm] = useState<UserSourceFormState | null>(null);
 
   const appsQuery = useQuery({ queryKey: ["applications", creds.baseUrl, creds.user.id], queryFn: () => apiCall((c) => listApplications(c)) });
   const domainsQuery = useQuery({ queryKey: ["builder", builderId, "domains"], queryFn: () => apiCall((c) => listBuilderDomains(c, builderId)) });
@@ -130,7 +245,7 @@ export default function BuilderScreen() {
 
   const actionMutation = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
-    onSuccess: async () => { setJsonAction(null); await refresh(); },
+    onSuccess: async () => { setJsonAction(null); setIntegrationForm(null); setUserSourceForm(null); await refresh(); },
     onError: (error) => Alert.alert("Builder action failed", error instanceof Error ? error.message : "Please try again."),
   });
 
@@ -152,6 +267,8 @@ export default function BuilderScreen() {
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{pages.length} pages · {domains.length} domains · {integrations.length} integrations · {userSources.length} user sources · {snapshots.length} snapshots</Text>
           <View style={styles.headerButtonRow}>
             <Button title="New page" onPress={() => setCreateOpen(true)} />
+            <Button title="New integration" variant="secondary" onPress={() => setIntegrationForm(blankIntegrationForm())} />
+            <Button title="New user source" variant="secondary" onPress={() => setUserSourceForm(blankUserSourceForm(integrations))} />
             <Button title="Create page JSON" variant="secondary" onPress={() => setJsonAction({ title: "Create builder page", description: "Enter the exact page payload Baserow expects.", initialJson: '{\n  "name": "Untitled page",\n  "path": "/untitled-page"\n}', submitLabel: "Create", requiresJson: true, run: (payload) => actionMutation.mutate(() => apiCall((c) => createBuilderPage(c, builderId, payload))) })} />
             <Button title="Create domain JSON" variant="secondary" onPress={() => setJsonAction({ title: "Create builder domain", description: "Enter the exact domain payload Baserow expects.", initialJson: '{\n  "domain_name": "example.com"\n}', submitLabel: "Create", requiresJson: true, run: (payload) => actionMutation.mutate(() => apiCall((c) => createBuilderDomain(c, builderId, payload))) })} />
             <Button title="Create integration JSON" variant="secondary" onPress={() => setJsonAction({ title: "Create integration", description: "Enter the exact application integration payload Baserow expects.", initialJson: '{\n  "type": "local_baserow"\n}', submitLabel: "Create", requiresJson: true, run: (payload) => actionMutation.mutate(() => apiCall((c) => createApplicationIntegration(c, builderId, payload))) })} />
@@ -254,12 +371,112 @@ export default function BuilderScreen() {
       </ScrollView>
     )}
     <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]} onPress={() => setCreateOpen(false)}><Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.modalTitle, { color: colors.foreground }]}>Create page</Text><TextInput value={pageName} onChangeText={setPageName} autoFocus style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} /><View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={() => setCreateOpen(false)} /><Button title="Create" onPress={() => createMutation.mutate(pageName)} loading={createMutation.isPending} /></View></Pressable></Pressable></Modal>
+    <IntegrationFormModal form={integrationForm} loading={actionMutation.isPending} onClose={() => setIntegrationForm(null)} onChange={setIntegrationForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createApplicationIntegration(c, builderId, payload)))} />
+    <UserSourceFormModal form={userSourceForm} integrations={integrations} loading={actionMutation.isPending} onClose={() => setUserSourceForm(null)} onChange={setUserSourceForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createApplicationUserSource(c, builderId, payload)))} />
     <JsonActionModal action={jsonAction} loading={actionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
   </View>;
+}
+
+function IntegrationFormModal({ form, loading, onClose, onChange, onSubmit }: { form: IntegrationFormState | null; loading?: boolean; onClose: () => void; onChange: (form: IntegrationFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
+  const colors = useColors();
+  const [error, setError] = useState<string | null>(null);
+  if (!form) return null;
+  const selected = INTEGRATION_OPTIONS.find((option) => option.type === form.type) ?? INTEGRATION_OPTIONS[0];
+  const update = (patch: Partial<IntegrationFormState>) => {
+    const next = { ...form, ...patch };
+    if (patch.type) next.name = INTEGRATION_OPTIONS.find((option) => option.type === patch.type)?.label ?? next.name;
+    onChange(next);
+    setError(null);
+  };
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]} onPress={onClose}><Pressable style={[styles.modalCard, styles.wideModalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <Text style={[styles.modalTitle, { color: colors.foreground }]}>Create integration</Text>
+    <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>Set up a common Application Builder integration. Use advanced JSON for provider-specific options.</Text>
+    <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Integration type</Text>
+      <View style={styles.optionGrid}>{INTEGRATION_OPTIONS.map((option) => {
+        const active = option.type === form.type;
+        return <Pressable key={option.type} onPress={() => update({ type: option.type })} style={[styles.optionCard, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.secondary : colors.background }]}><Feather name={option.icon} size={16} color={active ? colors.primary : colors.mutedForeground} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: colors.foreground }]}>{option.label}</Text><Text style={[styles.optionMeta, { color: colors.mutedForeground }]}>{option.description}</Text></View></Pressable>;
+      })}</View>
+      <FormInput label="Name" value={form.name} onChangeText={(name) => update({ name })} />
+      {selected.type === "smtp" ? <FormInput label="SMTP host" value={form.host} onChangeText={(host) => update({ host })} autoCapitalize="none" placeholder="smtp.example.com" /> : null}
+      {selected.type === "smtp" ? <FormInput label="SMTP port" value={form.port} onChangeText={(port) => update({ port })} keyboardType="number-pad" /> : null}
+      {selected.type === "smtp" ? <FormInput label="Username" value={form.username} onChangeText={(username) => update({ username })} autoCapitalize="none" /> : null}
+      {selected.type === "smtp" ? <FormInput label="Password" value={form.password} onChangeText={(password) => update({ password })} autoCapitalize="none" /> : null}
+      {selected.type === "slack_bot" ? <FormInput label="Bot token" value={form.token} onChangeText={(token) => update({ token })} autoCapitalize="none" placeholder="xoxb-..." /> : null}
+      <FormInput label="Advanced JSON overrides" value={form.advancedJson} onChangeText={(advancedJson) => update({ advancedJson })} multiline />
+    </ScrollView>
+    {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
+    <View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={onClose} /><Button title="Create" loading={loading} onPress={() => { try { onSubmit(buildIntegrationPayload(form)); } catch (err) { setError(err instanceof Error ? err.message : "Check the integration fields."); } }} /></View>
+  </Pressable></Pressable></Modal>;
+}
+
+function UserSourceFormModal({ form, integrations, loading, onClose, onChange, onSubmit }: { form: UserSourceFormState | null; integrations: { id: number; name?: string; type?: string }[]; loading?: boolean; onClose: () => void; onChange: (form: UserSourceFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
+  const colors = useColors();
+  const [error, setError] = useState<string | null>(null);
+  if (!form) return null;
+  const update = (patch: Partial<UserSourceFormState>) => { onChange({ ...form, ...patch }); setError(null); };
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]} onPress={onClose}><Pressable style={[styles.modalCard, styles.wideModalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+    <Text style={[styles.modalTitle, { color: colors.foreground }]}>Create user source</Text>
+    <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>Connect a local Baserow table as an Application Builder auth/user source.</Text>
+    <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+      <FormInput label="Name" value={form.name} onChangeText={(name) => update({ name })} />
+      <View style={styles.formBlock}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Integration</Text><View style={styles.optionGrid}>{integrations.map((integration) => <Pressable key={integration.id} onPress={() => update({ integrationId: String(integration.id) })} style={[styles.optionCard, { borderColor: form.integrationId === String(integration.id) ? colors.primary : colors.border, backgroundColor: form.integrationId === String(integration.id) ? colors.secondary : colors.background }]}><Feather name="link" size={16} color={form.integrationId === String(integration.id) ? colors.primary : colors.mutedForeground} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: colors.foreground }]}>{integration.name || `${integration.type} integration`}</Text><Text style={[styles.optionMeta, { color: colors.mutedForeground }]}>#{integration.id}</Text></View></Pressable>)}</View></View>
+      <FormInput label="Integration ID" value={form.integrationId} onChangeText={(integrationId) => update({ integrationId })} keyboardType="number-pad" />
+      <FormInput label="Users table ID" value={form.tableId} onChangeText={(tableId) => update({ tableId })} keyboardType="number-pad" />
+      <FormInput label="Email field ID" value={form.emailFieldId} onChangeText={(emailFieldId) => update({ emailFieldId })} keyboardType="number-pad" />
+      <FormInput label="Name field ID" value={form.nameFieldId} onChangeText={(nameFieldId) => update({ nameFieldId })} keyboardType="number-pad" />
+      <FormInput label="Role field ID" value={form.roleFieldId} onChangeText={(roleFieldId) => update({ roleFieldId })} keyboardType="number-pad" />
+      <FormInput label="Advanced JSON overrides" value={form.advancedJson} onChangeText={(advancedJson) => update({ advancedJson })} multiline />
+    </ScrollView>
+    {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
+    <View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={onClose} /><Button title="Create" loading={loading} onPress={() => { try { onSubmit(buildUserSourcePayload(form)); } catch (err) { setError(err instanceof Error ? err.message : "Check the user-source fields."); } }} /></View>
+  </Pressable></Pressable></Modal>;
+}
+
+function FormInput({ label, value, onChangeText, placeholder, multiline, keyboardType, autoCapitalize }: { label: string; value: string; onChangeText: (value: string) => void; placeholder?: string; multiline?: boolean; keyboardType?: "default" | "number-pad"; autoCapitalize?: "none" | "sentences" | "words" | "characters" }) {
+  const colors = useColors();
+  return <View style={styles.formBlock}><Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.mutedForeground} multiline={multiline} keyboardType={keyboardType} autoCapitalize={autoCapitalize} style={[styles.input, multiline ? styles.multilineInput : null, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} /></View>;
 }
 
 function Section({ title, icon, children }: { title: string; icon: keyof typeof Feather.glyphMap; children: React.ReactNode }) { const colors = useColors(); return <View style={styles.section}><View style={styles.sectionHeader}><Feather name={icon} size={16} color={colors.mutedForeground} /><Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{title}</Text></View>{children}</View>; }
 function Pill({ label, onPress, destructive }: { label: string; onPress: () => void; destructive?: boolean }) { const colors = useColors(); return <Pressable onPress={onPress} style={[styles.pill, { backgroundColor: destructive ? colors.destructive : colors.secondary }]}><Text style={[styles.pillText, { color: destructive ? colors.destructiveForeground : colors.primary }]}>{label}</Text></Pressable>; }
 function Card({ children }: { children: React.ReactNode }) { const colors = useColors(); return <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>{children}</View>; }
 
-const styles = StyleSheet.create({ fill: { flex: 1 }, headerWrap: { paddingHorizontal: 20, paddingBottom: 8 }, crumb: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 }, title: { fontSize: 30, lineHeight: 36, fontFamily: "Inter_700Bold" }, subtitle: { marginTop: 6, fontSize: 14, fontFamily: "Inter_400Regular" }, headerButtonRow: { marginTop: 16, alignItems: "flex-start", gap: 10 }, section: { paddingHorizontal: 16, paddingTop: 18, gap: 10 }, sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }, sectionTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.7, textTransform: "uppercase" }, card: { borderWidth: 1, padding: 14, marginBottom: 10 }, rowTop: { flexDirection: "row", alignItems: "center", gap: 12 }, iconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" }, itemTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" }, itemMeta: { marginTop: 3, fontSize: 13, fontFamily: "Inter_400Regular" }, jsonPreview: { marginTop: 10, fontSize: 11, lineHeight: 16, fontFamily: "Inter_400Regular" }, actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }, pill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 }, pillText: { fontSize: 12, fontFamily: "Inter_700Bold" }, smallButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }, smallButtonText: { fontSize: 12, fontFamily: "Inter_700Bold" }, modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }, modalCard: { width: "100%", maxWidth: 420, borderWidth: 1, padding: 18 }, modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 12 }, input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontFamily: "Inter_400Regular" }, modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 } });
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  headerWrap: { paddingHorizontal: 20, paddingBottom: 8 },
+  crumb: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 4 },
+  title: { fontSize: 30, lineHeight: 36, fontFamily: "Inter_700Bold" },
+  subtitle: { marginTop: 6, fontSize: 14, fontFamily: "Inter_400Regular" },
+  headerButtonRow: { marginTop: 16, alignItems: "flex-start", gap: 10 },
+  section: { paddingHorizontal: 16, paddingTop: 18, gap: 10 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.7, textTransform: "uppercase" },
+  card: { borderWidth: 1, padding: 14, marginBottom: 10 },
+  rowTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  itemTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  itemMeta: { marginTop: 3, fontSize: 13, fontFamily: "Inter_400Regular" },
+  jsonPreview: { marginTop: 10, fontSize: 11, lineHeight: 16, fontFamily: "Inter_400Regular" },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  pill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
+  pillText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  smallButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  smallButtonText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  modalCard: { width: "100%", maxWidth: 420, borderWidth: 1, padding: 18 },
+  wideModalCard: { maxWidth: 640, maxHeight: "90%" },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 12 },
+  modalDescription: { marginTop: -4, marginBottom: 10, fontSize: 13, lineHeight: 19, fontFamily: "Inter_400Regular" },
+  modalScroll: { maxHeight: 560 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontFamily: "Inter_400Regular" },
+  multilineInput: { minHeight: 104, textAlignVertical: "top" },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 },
+  optionGrid: { gap: 8, marginBottom: 12 },
+  optionCard: { flexDirection: "row", gap: 10, borderWidth: 1, borderRadius: 14, padding: 12 },
+  optionTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  optionMeta: { marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: "Inter_400Regular" },
+  formBlock: { marginTop: 12, gap: 6 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.5 },
+  errorText: { marginTop: 10, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+});
