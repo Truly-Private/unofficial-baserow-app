@@ -767,7 +767,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
 
   if (widget.type === "text") {
     return (
-      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
         <Text style={[styles.previewBody, { color: colors.foreground }]}>{displayValue(widget.text ?? widget.content ?? widget.description)}</Text>
       </View>
     );
@@ -775,7 +775,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
 
   if (widget.type === "link") {
     return (
-      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
         <Text style={[styles.previewLabel, { color: colors.mutedForeground }]}>Link</Text>
         <Text style={[styles.previewBody, { color: colors.primary }]}>{displayValue(widget.link_url ?? widget.url ?? widget.href)}</Text>
       </View>
@@ -784,7 +784,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
 
   if (widget.type === "table") {
     return (
-      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
         <Text style={[styles.previewLabel, { color: colors.mutedForeground }]}>Rows</Text>
         <Text style={[styles.previewValue, { color: colors.foreground }]}>{rows.length ? `${rows.length} available` : "Waiting for data"}</Text>
         {rows.slice(0, 3).map((row, index) => (
@@ -798,7 +798,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
 
   if (widget.type.includes("chart")) {
     return (
-      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+      <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
         <View style={styles.chartBars}>
           {[0.38, 0.72, 0.54, 0.88, 0.46].map((height, index) => (
             <View key={index} style={[styles.chartBar, { height: 50 * height, backgroundColor: colors.primary }]} />
@@ -812,7 +812,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
   }
 
   return (
-    <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+    <View style={[styles.widgetPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
       <Text style={[styles.previewLabel, { color: colors.mutedForeground }]}>Summary value</Text>
       <Text style={[styles.previewValue, { color: colors.foreground }]}>{displayValue(primaryValue)}</Text>
       <Text style={[styles.previewBody, { color: colors.mutedForeground }]}>
@@ -861,7 +861,7 @@ function WidgetFormModal({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}>
-        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}> 
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
           <Text style={[styles.modalTitle, { color: colors.foreground }]}>
             {state.mode === "edit" ? "Edit widget" : "New widget"}
           </Text>

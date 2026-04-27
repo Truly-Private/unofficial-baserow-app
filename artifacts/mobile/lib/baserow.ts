@@ -2272,7 +2272,7 @@ export async function sendAssistantMessageSimple(
   const reader = stream[Symbol.asyncIterator]();
   let result = "";
   let messageId: number | null = null;
-  
+
   // Note: In a real implementation, you'd parse SSE events here
   // For now, this is a placeholder that returns the request status
   return { id: 0, content: "Message sent" };

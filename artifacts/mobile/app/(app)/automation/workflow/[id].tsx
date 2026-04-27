@@ -435,7 +435,7 @@ function NodeSummary({ node }: { node: BaserowAutomationNode }) {
   const colors = useColors();
   const option = optionForNodeType(node.type);
   return (
-    <View style={[styles.nodeSummary, { borderColor: colors.border }]}> 
+    <View style={[styles.nodeSummary, { borderColor: colors.border }]}>
       <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{option.kind}</Text>
       <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>{option.description}</Text>
       {node.table_id ? <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>Table ID: {String(node.table_id)}</Text> : null}
@@ -590,7 +590,7 @@ function NodeFormModal({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.45)" }]} onPress={onClose}>
-        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}> 
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
           <Text style={[styles.modalTitle, { color: colors.foreground }]}>Create automation node</Text>
           <Text style={[styles.modalDescription, { color: colors.mutedForeground }]}>Pick a trigger or action, then fill the native fields for common Baserow node payloads.</Text>
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
