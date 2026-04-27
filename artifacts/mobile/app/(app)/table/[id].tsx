@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { FieldDisplay } from "@/components/FieldDisplay";
 import { FieldsPanel } from "@/components/FieldsPanel";
+import { KanbanBoard } from "@/components/KanbanBoard";
 import { LoadingState } from "@/components/LoadingState";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
 import {
@@ -643,6 +644,21 @@ export default function TableScreen() {
                 debouncedSearch
                   ? "Try a different search term or switch views."
                   : "Tap the + button to add your first row."
+              }
+            />
+          ) : selectedView?.type === "kanban" ? (
+            <KanbanBoard
+              rows={flatRows}
+              fields={fields}
+              onRowPress={(row) =>
+                router.push({
+                  pathname: "/(app)/row/[tableId]/[rowId]",
+                  params: {
+                    tableId: String(tableId),
+                    rowId: String(row.id),
+                    tableName,
+                  },
+                })
               }
             />
           ) : (
