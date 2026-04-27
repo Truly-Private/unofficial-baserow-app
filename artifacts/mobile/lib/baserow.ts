@@ -207,6 +207,19 @@ export type BaserowRowsResponse = {
   results: BaserowRow[];
 };
 
+export type BaserowComment = {
+  id: number;
+  table_id: number;
+  row_id: number;
+  user_id: number;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+  comment: string;
+  created_on: string;
+  last_modified: string;
+};
+
 export type BaserowDashboardWidget = {
   id: number;
   type: string;
@@ -351,7 +364,7 @@ export class BaserowApiError extends Error {
   }
 }
 
-function authHeader(creds: { jwt: string }): Record<string, string> {
+export function authHeader(creds: { jwt: string }): Record<string, string> {
   return { Authorization: `JWT ${creds.jwt}` };
 }
 
@@ -2318,4 +2331,71 @@ export async function submitAssistantFeedback(
     const data = await res.json().catch(() => ({}));
     throw new BaserowApiError(res.status, data, data?.detail || "Failed to submit feedback");
   }
+}
+
+/**
+ * List comments for a specific row.
+ */
+export async function listComments(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+): Promise<BaserowComment[]> {
+  return request<BaserowComment[]>(
+    creds.baseUrl,
+    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Create a new comment on a row.
+ */
+export async function createComment(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+  comment: string,
+): Promise<BaserowComment> {
+  return request<BaserowComment>(
+    creds.baseUrl,
+    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ comment }),
+    }
+  );
+}
+
+/**
+ * Update an existing comment.
+ */
+export async function updateComment(
+  creds: BaserowCredentials,
+  commentId: number,
+  comment: string,
+): Promise<BaserowComment> {
+  return request<BaserowComment>(
+    creds.baseUrl,
+    `/api/database/comments/${commentId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ comment }),
+    }
+  );
+}
+
+/**
+ * Delete a comment.
+ */
+export async function deleteComment(
+  creds: BaserowCredentials,
+  commentId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/database/comments/${commentId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
 }
