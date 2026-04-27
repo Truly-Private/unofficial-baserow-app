@@ -41,6 +41,8 @@ export type BaserowApplication = {
   workspace?: BaserowWorkspace;
   group?: BaserowWorkspace;
   tables?: BaserowTable[];
+  pages?: BaserowBuilderPage[];
+  workflows?: BaserowAutomationWorkflow[];
 };
 
 export type BaserowTemplate = {
@@ -205,6 +207,131 @@ export type BaserowRowsResponse = {
   results: BaserowRow[];
 };
 
+export type BaserowComment = {
+  id: number;
+  table_id: number;
+  row_id: number;
+  user_id: number;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+  comment: string;
+  created_on: string;
+  last_modified: string;
+};
+
+export type BaserowDashboardWidget = {
+  id: number;
+  type: string;
+  title?: string;
+  description?: string;
+  order?: number;
+  row?: number;
+  col?: number;
+  width?: number;
+  height?: number;
+  data_source_id?: number;
+  data_source?: BaserowDataSource;
+  [key: string]: unknown;
+};
+
+export type BaserowDataSource = {
+  id: number;
+  name?: string;
+  type: string;
+  order?: number;
+  service?: unknown;
+  schema_property?: string;
+  [key: string]: unknown;
+};
+
+export type BaserowAutomationWorkflow = {
+  id: number;
+  name: string;
+  order?: number;
+  published?: boolean;
+  state?: string;
+  automation_id?: number;
+  [key: string]: unknown;
+};
+
+export type BaserowAutomationNode = {
+  id: number;
+  type: string;
+  name?: string;
+  order?: number;
+  workflow_id?: number;
+  previous_node_id?: number | null;
+  [key: string]: unknown;
+};
+
+export type BaserowAutomationHistoryItem = {
+  id: number;
+  status?: string;
+  started_on?: string;
+  finished_on?: string | null;
+  message?: string;
+  [key: string]: unknown;
+};
+
+export type BaserowBuilderPage = {
+  id: number;
+  name: string;
+  path?: string;
+  order?: number;
+  builder_id?: number;
+  [key: string]: unknown;
+};
+
+export type BaserowBuilderElement = {
+  id: number;
+  type: string;
+  name?: string;
+  order?: number;
+  parent_element_id?: number | null;
+  [key: string]: unknown;
+};
+
+export type BaserowBuilderWorkflowAction = {
+  id: number;
+  type: string;
+  name?: string;
+  order?: number;
+  [key: string]: unknown;
+};
+
+export type BaserowBuilderDomain = {
+  id: number;
+  domain_name?: string;
+  name?: string;
+  order?: number;
+  published_to?: string;
+  [key: string]: unknown;
+};
+
+export type BaserowApplicationIntegration = {
+  id: number;
+  type: string;
+  name?: string;
+  order?: number;
+  [key: string]: unknown;
+};
+
+export type BaserowApplicationUserSource = {
+  id: number;
+  type: string;
+  name?: string;
+  order?: number;
+  [key: string]: unknown;
+};
+
+export type BaserowApplicationSnapshot = {
+  id: number;
+  created_on?: string;
+  created_by_id?: number;
+  [key: string]: unknown;
+};
+
 export type AssistantChat = {
   id: string;
   uuid: string;
@@ -237,7 +364,7 @@ export class BaserowApiError extends Error {
   }
 }
 
-function authHeader(creds: { jwt: string }): Record<string, string> {
+export function authHeader(creds: { jwt: string }): Record<string, string> {
   return { Authorization: `JWT ${creds.jwt}` };
 }
 
@@ -359,6 +486,207 @@ export async function createApplication(
       method: "POST",
       headers: authHeader(creds),
       body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function getApplication(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowApplication> {
+  return request<BaserowApplication>(
+    creds.baseUrl,
+    `/api/applications/${applicationId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function listApplicationUserSourceUsersForApplication(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<unknown> {
+  return listApplicationUserSourceUsers(creds, applicationId);
+}
+
+export async function updateApplication(
+  creds: BaserowCredentials,
+  applicationId: number,
+  params: Partial<Pick<BaserowApplication, "name">> & Record<string, unknown>,
+): Promise<BaserowApplication> {
+  return request<BaserowApplication>(
+    creds.baseUrl,
+    `/api/applications/${applicationId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteApplication(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/applications/${applicationId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function duplicateApplicationAsync(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/applications/${applicationId}/duplicate/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function listApplicationIntegrations(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowApplicationIntegration[]> {
+  return request<BaserowApplicationIntegration[]>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/integrations/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createApplicationIntegration(
+  creds: BaserowCredentials,
+  applicationId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowApplicationIntegration> {
+  return request<BaserowApplicationIntegration>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/integrations/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function updateApplicationIntegration(
+  creds: BaserowCredentials,
+  integrationId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowApplicationIntegration> {
+  return request<BaserowApplicationIntegration>(
+    creds.baseUrl,
+    `/api/integration/${integrationId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteApplicationIntegration(
+  creds: BaserowCredentials,
+  integrationId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/integration/${integrationId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function moveApplicationIntegration(
+  creds: BaserowCredentials,
+  integrationId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowApplicationIntegration> {
+  return request<BaserowApplicationIntegration>(
+    creds.baseUrl,
+    `/api/integration/${integrationId}/move/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listApplicationUserSources(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowApplicationUserSource[]> {
+  return request<BaserowApplicationUserSource[]>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/user-sources/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createApplicationUserSource(
+  creds: BaserowCredentials,
+  applicationId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowApplicationUserSource> {
+  return request<BaserowApplicationUserSource>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/user-sources/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listApplicationUserSourceUsers(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/list-user-source-users/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function listApplicationUserSourceRoles(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/application/${applicationId}/user-sources/roles/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function listApplicationSnapshots(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowApplicationSnapshot[]> {
+  return request<BaserowApplicationSnapshot[]>(
+    creds.baseUrl,
+    `/api/snapshots/application/${applicationId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createApplicationSnapshot(
+  creds: BaserowCredentials,
+  applicationId: number,
+): Promise<BaserowApplicationSnapshot> {
+  return request<BaserowApplicationSnapshot>(
+    creds.baseUrl,
+    `/api/snapshots/application/${applicationId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
     },
   );
 }
@@ -699,6 +1027,946 @@ export async function uploadUserFile(
   return (await res.json()) as BaserowFile;
 }
 
+// ============================================================================
+// Dashboard API
+// ============================================================================
+
+export async function listDashboardWidgets(
+  creds: BaserowCredentials,
+  dashboardId: number,
+): Promise<BaserowDashboardWidget[]> {
+  return request<BaserowDashboardWidget[]>(
+    creds.baseUrl,
+    `/api/dashboard/${dashboardId}/widgets/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createDashboardWidget(
+  creds: BaserowCredentials,
+  dashboardId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDashboardWidget> {
+  return request<BaserowDashboardWidget>(
+    creds.baseUrl,
+    `/api/dashboard/${dashboardId}/widgets/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function updateDashboardWidget(
+  creds: BaserowCredentials,
+  widgetId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDashboardWidget> {
+  return request<BaserowDashboardWidget>(
+    creds.baseUrl,
+    `/api/dashboard/widgets/${widgetId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteDashboardWidget(
+  creds: BaserowCredentials,
+  widgetId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/dashboard/widgets/${widgetId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function listDashboardDataSources(
+  creds: BaserowCredentials,
+  dashboardId: number,
+): Promise<BaserowDataSource[]> {
+  return request<BaserowDataSource[]>(
+    creds.baseUrl,
+    `/api/dashboard/${dashboardId}/data-sources/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function updateDashboardDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDataSource> {
+  return request<BaserowDataSource>(
+    creds.baseUrl,
+    `/api/dashboard/data-sources/${dataSourceId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function dispatchDashboardDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/dashboard/data-sources/${dataSourceId}/dispatch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+// ============================================================================
+// Automation API
+// ============================================================================
+
+export async function createAutomationWorkflow(
+  creds: BaserowCredentials,
+  automationId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationWorkflow> {
+  return request<BaserowAutomationWorkflow>(
+    creds.baseUrl,
+    `/api/automation/${automationId}/workflows/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function orderAutomationWorkflows(
+  creds: BaserowCredentials,
+  automationId: number,
+  workflowIds: number[],
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/automation/${automationId}/workflows/order/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ workflow_ids: workflowIds }),
+    },
+  );
+}
+
+export async function getAutomationWorkflow(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<BaserowAutomationWorkflow> {
+  return request<BaserowAutomationWorkflow>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function updateAutomationWorkflow(
+  creds: BaserowCredentials,
+  workflowId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationWorkflow> {
+  return request<BaserowAutomationWorkflow>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteAutomationWorkflow(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function duplicateAutomationWorkflowAsync(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/duplicate/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function getAutomationWorkflowHistory(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<BaserowAutomationHistoryItem[] | { results?: BaserowAutomationHistoryItem[] }> {
+  return request<BaserowAutomationHistoryItem[] | { results?: BaserowAutomationHistoryItem[] }>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/history/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function publishAutomationWorkflowAsync(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/publish/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function testAutomationWorkflow(
+  creds: BaserowCredentials,
+  workflowId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/automation/workflows/${workflowId}/test/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listAutomationNodes(
+  creds: BaserowCredentials,
+  workflowId: number,
+): Promise<BaserowAutomationNode[]> {
+  return request<BaserowAutomationNode[]>(
+    creds.baseUrl,
+    `/api/automation/workflow/${workflowId}/nodes/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createAutomationNode(
+  creds: BaserowCredentials,
+  workflowId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationNode> {
+  return request<BaserowAutomationNode>(
+    creds.baseUrl,
+    `/api/automation/workflow/${workflowId}/nodes/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function updateAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationNode> {
+  return request<BaserowAutomationNode>(
+    creds.baseUrl,
+    `/api/automation/node/${nodeId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/automation/node/${nodeId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function duplicateAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+): Promise<BaserowAutomationNode> {
+  return request<BaserowAutomationNode>(
+    creds.baseUrl,
+    `/api/automation/node/${nodeId}/duplicate/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function replaceAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationNode> {
+  return request<BaserowAutomationNode>(
+    creds.baseUrl,
+    `/api/automation/node/${nodeId}/replace/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function moveAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowAutomationNode> {
+  return request<BaserowAutomationNode>(
+    creds.baseUrl,
+    `/api/automation/node/${nodeId}/move/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function simulateDispatchAutomationNode(
+  creds: BaserowCredentials,
+  nodeId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/automation/node/${nodeId}/simulate-dispatch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+// ============================================================================
+// Application Builder API
+// ============================================================================
+
+export async function createBuilderPage(
+  creds: BaserowCredentials,
+  builderId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderPage> {
+  return request<BaserowBuilderPage>(
+    creds.baseUrl,
+    `/api/builder/${builderId}/pages/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function orderBuilderPages(
+  creds: BaserowCredentials,
+  builderId: number,
+  pageIds: number[],
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/builder/${builderId}/pages/order/`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify({ page_ids: pageIds }),
+  });
+}
+
+export async function updateBuilderPage(
+  creds: BaserowCredentials,
+  pageId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderPage> {
+  return request<BaserowBuilderPage>(
+    creds.baseUrl,
+    `/api/builder/pages/${pageId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteBuilderPage(
+  creds: BaserowCredentials,
+  pageId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/builder/pages/${pageId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function duplicateBuilderPageAsync(
+  creds: BaserowCredentials,
+  pageId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/builder/pages/${pageId}/duplicate/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function createBuilderPageElement(
+  creds: BaserowCredentials,
+  pageId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderElement> {
+  return request<BaserowBuilderElement>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/elements/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listBuilderPageElements(
+  creds: BaserowCredentials,
+  pageId: number,
+): Promise<BaserowBuilderElement[]> {
+  return request<BaserowBuilderElement[]>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/elements/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function updateBuilderPageElement(
+  creds: BaserowCredentials,
+  elementId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderElement> {
+  return request<BaserowBuilderElement>(
+    creds.baseUrl,
+    `/api/builder/element/${elementId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteBuilderPageElement(
+  creds: BaserowCredentials,
+  elementId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/builder/element/${elementId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function duplicateBuilderPageElement(
+  creds: BaserowCredentials,
+  elementId: number,
+): Promise<BaserowBuilderElement> {
+  return request<BaserowBuilderElement>(
+    creds.baseUrl,
+    `/api/builder/element/${elementId}/duplicate/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function moveBuilderPageElement(
+  creds: BaserowCredentials,
+  elementId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderElement> {
+  return request<BaserowBuilderElement>(
+    creds.baseUrl,
+    `/api/builder/element/${elementId}/move/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function createBuilderPageDataSource(
+  creds: BaserowCredentials,
+  pageId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDataSource> {
+  return request<BaserowDataSource>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/data-sources/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listBuilderPageDataSources(
+  creds: BaserowCredentials,
+  pageId: number,
+): Promise<BaserowDataSource[]> {
+  return request<BaserowDataSource[]>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/data-sources/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function updateBuilderPageDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDataSource> {
+  return request<BaserowDataSource>(
+    creds.baseUrl,
+    `/api/builder/data-source/${dataSourceId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteBuilderPageDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/builder/data-source/${dataSourceId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function moveBuilderPageDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDataSource> {
+  return request<BaserowDataSource>(
+    creds.baseUrl,
+    `/api/builder/data-source/${dataSourceId}/move/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function getBuilderPageDataSourceRecordNames(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/builder/data-source/${dataSourceId}/record-names/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function dispatchBuilderPageDataSources(
+  creds: BaserowCredentials,
+  pageId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/dispatch-data-sources/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function dispatchBuilderPageDataSource(
+  creds: BaserowCredentials,
+  dataSourceId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/builder/data-source/${dataSourceId}/dispatch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listBuilderPageWorkflowActions(
+  creds: BaserowCredentials,
+  pageId: number,
+): Promise<BaserowBuilderWorkflowAction[]> {
+  return request<BaserowBuilderWorkflowAction[]>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/workflow_actions/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createBuilderPageWorkflowAction(
+  creds: BaserowCredentials,
+  pageId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderWorkflowAction> {
+  return request<BaserowBuilderWorkflowAction>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/workflow_actions/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function updateBuilderPageWorkflowAction(
+  creds: BaserowCredentials,
+  workflowActionId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderWorkflowAction> {
+  return request<BaserowBuilderWorkflowAction>(
+    creds.baseUrl,
+    `/api/builder/workflow_action/${workflowActionId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteBuilderPageWorkflowAction(
+  creds: BaserowCredentials,
+  workflowActionId: number,
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/builder/workflow_action/${workflowActionId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function dispatchBuilderPageWorkflowAction(
+  creds: BaserowCredentials,
+  workflowActionId: number,
+  params: Record<string, unknown> = {},
+): Promise<unknown> {
+  return request<unknown>(
+    creds.baseUrl,
+    `/api/builder/workflow_action/${workflowActionId}/dispatch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function orderBuilderWorkflowActions(
+  creds: BaserowCredentials,
+  pageId: number,
+  workflowActionIds: number[],
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/builder/page/${pageId}/workflow_actions/order/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ workflow_action_ids: workflowActionIds }),
+    },
+  );
+}
+
+export async function listBuilderDomains(
+  creds: BaserowCredentials,
+  builderId: number,
+): Promise<BaserowBuilderDomain[]> {
+  return request<BaserowBuilderDomain[]>(
+    creds.baseUrl,
+    `/api/builder/${builderId}/domains/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+export async function createBuilderDomain(
+  creds: BaserowCredentials,
+  builderId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderDomain> {
+  return request<BaserowBuilderDomain>(
+    creds.baseUrl,
+    `/api/builder/${builderId}/domains/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function askPublicBuilderDomainExists(
+  domainName: string,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/ask-public-domain-exists/?domain_name=${encodeURIComponent(domainName)}`,
+  );
+}
+
+export async function orderBuilderDomains(
+  creds: BaserowCredentials,
+  builderId: number,
+  domainIds: number[],
+): Promise<void> {
+  return request<void>(
+    creds.baseUrl,
+    `/api/builder/${builderId}/domains/order/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ domain_ids: domainIds }),
+    },
+  );
+}
+
+export async function updateBuilderDomain(
+  creds: BaserowCredentials,
+  domainId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowBuilderDomain> {
+  return request<BaserowBuilderDomain>(
+    creds.baseUrl,
+    `/api/builder/domains/${domainId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function deleteBuilderDomain(
+  creds: BaserowCredentials,
+  domainId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/builder/domains/${domainId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+export async function publishBuilderDomainAsync(
+  creds: BaserowCredentials,
+  domainId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/builder/domains/${domainId}/publish/async/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function updateBuilderTheme(
+  creds: BaserowCredentials,
+  builderId: number,
+  params: Record<string, unknown>,
+): Promise<unknown> {
+  return request<unknown>(creds.baseUrl, `/api/builder/${builderId}/theme/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getPublicBuilderById(
+  builderId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/by_id/${builderId}/`,
+  );
+}
+
+export async function getPublicBuilderByName(
+  domainName: string,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/by_name/${encodeURIComponent(domainName)}/`,
+  );
+}
+
+export async function getBuilderCustomCss(
+  creds: BaserowCredentials,
+  builderId: number,
+): Promise<string> {
+  return request<string>(creds.baseUrl, `/api/custom_code/${builderId}/css/`, {
+    headers: authHeader(creds),
+  });
+}
+
+export async function getBuilderCustomJs(
+  creds: BaserowCredentials,
+  builderId: number,
+): Promise<string> {
+  return request<string>(creds.baseUrl, `/api/custom_code/${builderId}/js/`, {
+    headers: authHeader(creds),
+  });
+}
+
+export async function getPublicBuilderCustomCss(
+  builderId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<string> {
+  return request<string>(baseUrl, `/api/custom_code/${builderId}/css/public/`);
+}
+
+export async function getPublicBuilderCustomJs(
+  builderId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<string> {
+  return request<string>(baseUrl, `/api/custom_code/${builderId}/js/public/`);
+}
+
+export async function getUserDashboard(
+  creds: BaserowCredentials,
+): Promise<unknown> {
+  return request<unknown>(creds.baseUrl, "/api/user/dashboard/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function getAdminDashboard(
+  creds: BaserowCredentials,
+): Promise<unknown> {
+  return request<unknown>(creds.baseUrl, "/api/admin/dashboard/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function listPublishedBuilderPageDataSources(
+  pageId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/page/${pageId}/data_sources/`,
+  );
+}
+
+export async function dispatchPublishedBuilderPageDataSources(
+  pageId: number,
+  params: Record<string, unknown> = {},
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/page/${pageId}/dispatch-data-sources/`,
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function dispatchPublishedBuilderDataSource(
+  dataSourceId: number,
+  params: Record<string, unknown> = {},
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/data-source/${dataSourceId}/dispatch/`,
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function listPublishedBuilderPageElements(
+  pageId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/page/${pageId}/elements/`,
+  );
+}
+
+export async function listPublishedBuilderPageWorkflowActions(
+  pageId: number,
+  baseUrl = DEFAULT_BASEROW_URL,
+): Promise<unknown> {
+  return request<unknown>(
+    baseUrl,
+    `/api/builder/domains/published/page/${pageId}/workflow_actions/`,
+  );
+}
+
 export function isEditable(field: BaserowField): boolean {
   if (field.read_only) return false;
   if (READONLY_FIELD_TYPES.has(field.type)) return false;
@@ -1017,7 +2285,7 @@ export async function sendAssistantMessageSimple(
   const reader = stream[Symbol.asyncIterator]();
   let result = "";
   let messageId: number | null = null;
-  
+
   // Note: In a real implementation, you'd parse SSE events here
   // For now, this is a placeholder that returns the request status
   return { id: 0, content: "Message sent" };
@@ -1063,4 +2331,71 @@ export async function submitAssistantFeedback(
     const data = await res.json().catch(() => ({}));
     throw new BaserowApiError(res.status, data, data?.detail || "Failed to submit feedback");
   }
+}
+
+/**
+ * List comments for a specific row.
+ */
+export async function listComments(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+): Promise<BaserowComment[]> {
+  return request<BaserowComment[]>(
+    creds.baseUrl,
+    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Create a new comment on a row.
+ */
+export async function createComment(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+  comment: string,
+): Promise<BaserowComment> {
+  return request<BaserowComment>(
+    creds.baseUrl,
+    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ comment }),
+    }
+  );
+}
+
+/**
+ * Update an existing comment.
+ */
+export async function updateComment(
+  creds: BaserowCredentials,
+  commentId: number,
+  comment: string,
+): Promise<BaserowComment> {
+  return request<BaserowComment>(
+    creds.baseUrl,
+    `/api/database/comments/${commentId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ comment }),
+    }
+  );
+}
+
+/**
+ * Delete a comment.
+ */
+export async function deleteComment(
+  creds: BaserowCredentials,
+  commentId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/database/comments/${commentId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
 }

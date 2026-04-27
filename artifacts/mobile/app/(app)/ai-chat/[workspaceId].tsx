@@ -19,6 +19,7 @@ import {
   listAssistantChats,
   listAssistantMessages,
   sendAssistantMessage,
+  sendAssistantMessageSimple,
   type AssistantChat,
   type AssistantMessage,
 } from "../../../lib/baserow";
@@ -41,7 +42,7 @@ function ConfirmModal({ visible, title, fields, tableName, onConfirm, onCancel, 
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Create {tableName}?</Text>
           <Text style={styles.modalSubtitle}>{title}</Text>
-          
+
           <ScrollView style={styles.modalFields}>
             {fields.map((field, idx) => (
               <View key={idx} style={styles.fieldRow}>
@@ -50,7 +51,7 @@ function ConfirmModal({ visible, title, fields, tableName, onConfirm, onCancel, 
               </View>
             ))}
           </ScrollView>
-          
+
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalBtnCancel} onPress={onCancel}>
               <Text style={styles.modalBtnTextCancel}>Cancel</Text>
@@ -72,7 +73,7 @@ function ErrorBanner({ error, onDismiss }: { error: string; onDismiss: () => voi
   // Determine error type and appropriate message
   let displayError = error;
   let isRetryable = false;
-  
+
   if (error.includes("404") || error.includes("not found")) {
     displayError = "AI Assistant is not available on this workspace.";
   } else if (error.includes("403") || error.includes("forbidden")) {
@@ -85,7 +86,7 @@ function ErrorBanner({ error, onDismiss }: { error: string; onDismiss: () => voi
   } else if (error.includes("429") || error.includes("rate limit")) {
     displayError = "Too many requests. Please wait a moment and try again.";
   }
-  
+
   return (
     <View style={styles.errorBanner}>
       <Text style={styles.errorText}>{displayError}</Text>
@@ -130,7 +131,7 @@ export default function AIChatScreen() {
       setLoading(true);
       setError(null);
       const chats = await listAssistantChats(credentials, Number(workspaceId));
-      
+
       // Use existing chat or create placeholder for first chat
       const existingChat = chats[0];
       if (existingChat) {
@@ -155,7 +156,7 @@ export default function AIChatScreen() {
       setError("No assistant chat is available for this workspace yet.");
       return;
     }
-    
+
     const userMessage = input.trim();
     setInput("");
     setSending(true);
@@ -184,7 +185,7 @@ export default function AIChatScreen() {
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
-      
+
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -294,7 +295,7 @@ export default function AIChatScreen() {
         title={confirmModal.title}
         fields={confirmModal.fields}
         tableName={confirmModal.tableName}
-        onConfirm={() => {/* TODO: Implement actual row creation */}}
+        onConfirm={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
         onCancel={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
         onEdit={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
       />

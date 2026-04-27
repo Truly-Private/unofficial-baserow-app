@@ -138,6 +138,14 @@ function defaultAppName(option: CreateMenuOption) {
   }
 }
 
+function appRouteFor(application: Pick<BaserowApplication, "id" | "name" | "type">) {
+  if (application.type === "database") return "/(app)/database/[id]" as const;
+  if (application.type === "dashboard") return "/(app)/dashboard/[id]" as const;
+  if (application.type === "automation") return "/(app)/automation/[id]" as const;
+  if (application.type === "builder") return "/(app)/builder/[id]" as const;
+  return null;
+}
+
 function getApplicationMeta(app: BaserowApplication) {
   if (app.type === "database") {
     const tableCount = app.tables?.length ?? 0;
@@ -302,9 +310,10 @@ export default function WorkspacesScreen() {
     onSuccess: async (application, draft) => {
       await invalidateWorkspaceData();
       setCreateAppDraft(null);
-      if (application.type === "database") {
+      const route = appRouteFor(application);
+      if (route) {
         router.push({
-          pathname: "/(app)/database/[id]",
+          pathname: route,
           params: {
             id: String(application.id),
             name: application.name,
@@ -490,9 +499,10 @@ export default function WorkspacesScreen() {
   };
 
   const handleApplicationPress = (app: BaserowApplication) => {
-    if (app.type === "database") {
+    const route = appRouteFor(app);
+    if (route) {
       router.push({
-        pathname: "/(app)/database/[id]",
+        pathname: route,
         params: {
           id: String(app.id),
           name: app.name,
