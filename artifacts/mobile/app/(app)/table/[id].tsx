@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { FieldDisplay } from "@/components/FieldDisplay";
 import { FieldsPanel } from "@/components/FieldsPanel";
+import { GalleryView } from "@/components/GalleryView";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { LoadingState } from "@/components/LoadingState";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
@@ -648,6 +649,21 @@ export default function TableScreen() {
             />
           ) : selectedView?.type === "kanban" ? (
             <KanbanBoard
+              rows={flatRows}
+              fields={fields}
+              onRowPress={(row) =>
+                router.push({
+                  pathname: "/(app)/row/[tableId]/[rowId]",
+                  params: {
+                    tableId: String(tableId),
+                    rowId: String(row.id),
+                    tableName,
+                  },
+                })
+              }
+            />
+          ) : selectedView?.type === "gallery" ? (
+            <GalleryView
               rows={flatRows}
               fields={fields}
               onRowPress={(row) =>
