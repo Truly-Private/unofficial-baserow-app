@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { FieldDisplay } from "@/components/FieldDisplay";
 import { FieldsPanel } from "@/components/FieldsPanel";
+import { FormView } from "@/components/FormView";
 import { GalleryView } from "@/components/GalleryView";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { LoadingState } from "@/components/LoadingState";
@@ -75,6 +76,7 @@ export default function TableScreen() {
   const [sortModalOpen, setSortModalOpen] = useState(false);
   const [fieldsPanelOpen, setFieldsPanelOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -427,10 +429,7 @@ export default function TableScreen() {
               </Pressable>
               <Pressable
                 onPress={() =>
-                  router.push({
-                    pathname: "/(app)/row/[tableId]/new",
-                    params: { tableId: String(tableId), tableName },
-                  })
+                  setFormModalOpen(true)
                 }
                 hitSlop={10}
                 style={{ paddingHorizontal: 4 }}
@@ -676,6 +675,17 @@ export default function TableScreen() {
                   },
                 })
               }
+            />
+          ) : selectedView?.type === "form" || formModalOpen ? (
+            <FormView
+              fields={fields}
+              submitLabel="Add Row"
+              onCancel={() => setFormModalOpen(false)}
+              onSubmit={(data) => {
+                // TODO: Create row via API
+                console.log("Form submitted:", data);
+                setFormModalOpen(false);
+              }}
             />
           ) : (
             <FlatList
