@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { JsonActionModal, type JsonAction } from "@/components/JsonActionModal";
 import { LoadingState } from "@/components/LoadingState";
+import { InsightCard, MobileRecordTable, StatusBadge, TableText, ViewModePills, type ViewModeOption } from "@/components/ViewOptions";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
@@ -50,8 +51,20 @@ import {
   updateBuilderDomain,
   updateBuilderPage,
   updateBuilderTheme,
+  type BaserowApplicationIntegration,
+  type BaserowApplicationSnapshot,
+  type BaserowApplicationUserSource,
+  type BaserowBuilderDomain,
   type BaserowBuilderPage,
 } from "@/lib/baserow";
+
+type BuilderViewMode = "overview" | "table" | "preview";
+
+const BUILDER_VIEW_MODES: ViewModeOption<BuilderViewMode>[] = [
+  { id: "overview", label: "Overview", icon: "layout" },
+  { id: "table", label: "Table", icon: "grid" },
+  { id: "preview", label: "Preview", icon: "smartphone" },
+];
 
 type IntegrationFormState = {
   type: "local_baserow" | "smtp" | "ai" | "slack_bot";
@@ -181,6 +194,7 @@ export default function BuilderScreen() {
   const [jsonAction, setJsonAction] = useState<(JsonAction & { run: (payload: Record<string, unknown>) => void }) | null>(null);
   const [integrationForm, setIntegrationForm] = useState<IntegrationFormState | null>(null);
   const [userSourceForm, setUserSourceForm] = useState<UserSourceFormState | null>(null);
+  const [builderViewMode, setBuilderViewMode] = useState<BuilderViewMode>("overview");
 
   const appsQuery = useQuery({ queryKey: ["applications", creds.baseUrl, creds.user.id], queryFn: () => apiCall((c) => listApplications(c)) });
   const domainsQuery = useQuery({ queryKey: ["builder", builderId, "domains"], queryFn: () => apiCall((c) => listBuilderDomains(c, builderId)) });
@@ -309,6 +323,37 @@ export default function BuilderScreen() {
           </View>
         </View>
 
+        <ViewModePills options={BUILDER_VIEW_MODES} value={builderViewMode} onChange={setBuilderViewMode} />
+        {builderViewMode === "table" ? (
+          <BuilderInventoryTables
+            pages={pages}
+            domains={domains}
+            integrations={integrations}
+            userSources={userSources}
+            snapshots={snapshots}
+            onOpenPage={(page) =>
+              router.push({ pathname: "/(app)/builder/page/[id]", params: { id: String(page.id), name: page.name, builder: builderName } })
+            }
+          />
+        ) : builderViewMode === "preview" ? (
+          <BuilderPreviewMode
+            builderName={builderName}
+            pages={pages}
+            domains={domains}
+            firstPage={firstPage}
+            publicBuilder={publicBuilderQuery.data}
+            publishedElements={publishedPageElementsQuery.data}
+            publishedDataSources={publishedPageDataSourcesQuery.data}
+            publishedActions={publishedPageActionsQuery.data}
+            publicCss={publicCustomCssQuery.data}
+            publicJs={publicCustomJsQuery.data}
+            onOpenPage={(page) =>
+              router.push({ pathname: "/(app)/builder/page/[id]", params: { id: String(page.id), name: page.name, builder: builderName } })
+            }
+            onDispatchPublicData={() => firstPage ? actionMutation.mutate(() => dispatchPublishedBuilderPageDataSources(firstPage.id, {}, creds.baseUrl)) : undefined}
+          />
+        ) : (
+          <>
         <Section title="Mobile navigation preview" icon="smartphone">
           <Card>
             <View style={[styles.mobileNavFrame, { borderColor: colors.border, borderRadius: colors.radius }]}>
@@ -434,6 +479,8 @@ export default function BuilderScreen() {
             </>
           )}
         </Section>
+          </>
+        )}
       </ScrollView>
     )}
     <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}><Pressable style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]} onPress={() => setCreateOpen(false)}><Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}><Text style={[styles.modalTitle, { color: colors.foreground }]}>Create page</Text><TextInput value={pageName} onChangeText={setPageName} autoFocus style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} /><View style={styles.modalActions}><Button title="Cancel" variant="secondary" onPress={() => setCreateOpen(false)} /><Button title="Create" onPress={() => createMutation.mutate(pageName)} loading={createMutation.isPending} /></View></Pressable></Pressable></Modal>
@@ -441,6 +488,163 @@ export default function BuilderScreen() {
     <UserSourceFormModal form={userSourceForm} integrations={integrations} loading={actionMutation.isPending} onClose={() => setUserSourceForm(null)} onChange={setUserSourceForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createApplicationUserSource(c, builderId, payload)))} />
     <JsonActionModal action={jsonAction} loading={actionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
   </View>;
+}
+
+function BuilderInventoryTables({
+  pages,
+  domains,
+  integrations,
+  userSources,
+  snapshots,
+  onOpenPage,
+}: {
+  pages: BaserowBuilderPage[];
+  domains: BaserowBuilderDomain[];
+  integrations: BaserowApplicationIntegration[];
+  userSources: BaserowApplicationUserSource[];
+  snapshots: BaserowApplicationSnapshot[];
+  onOpenPage: (page: BaserowBuilderPage) => void;
+}) {
+  return (
+    <>
+      <InsightCard icon="file" label="Pages" value={String(pages.length)} description="Builder routes available in the application navigation." />
+      <InsightCard icon="globe" label="Domains" value={String(domains.length)} description="Publishing targets and public preview endpoints." />
+      <InsightCard icon="link" label="Integrations" value={String(integrations.length)} description="Services available to data sources, auth, and workflow actions." />
+      <Section title="Pages table" icon="grid">
+        <MobileRecordTable
+          items={pages}
+          getKey={(page) => String(page.id)}
+          onRowPress={(page) => onOpenPage(page)}
+          emptyIcon="file"
+          emptyTitle="No pages"
+          emptyDescription="Create pages to fill this application inventory."
+          footerLabel={`${pages.length} pages · tap a row to open`}
+          columns={[
+            { key: "name", label: "Name", width: 190, render: (page) => <TableText strong>{page.name}</TableText> },
+            { key: "path", label: "Path", width: 170, render: (page) => <TableText>{page.path || "/"}</TableText> },
+            { key: "order", label: "Order", width: 90, render: (page, index) => <TableText>{String(page.order ?? index)}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (page) => <TableText>#{page.id}</TableText> },
+          ]}
+        />
+      </Section>
+      <Section title="Domains table" icon="globe">
+        <MobileRecordTable
+          items={domains}
+          getKey={(domain) => String(domain.id)}
+          emptyIcon="globe"
+          emptyTitle="No domains"
+          emptyDescription="Domains configured on desktop will appear in this publishing table."
+          footerLabel={`${domains.length} domains`}
+          columns={[
+            { key: "domain", label: "Domain", width: 220, render: (domain) => <TableText strong>{domain.domain_name || domain.name || `Domain #${domain.id}`}</TableText> },
+            { key: "status", label: "Status", width: 160, render: (domain) => <StatusBadge label={domain.published_to ? "Published" : "Not published"} tone={domain.published_to ? "good" : "neutral"} /> },
+            { key: "target", label: "Target", width: 220, render: (domain) => <TableText>{domain.published_to || "—"}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (domain) => <TableText>#{domain.id}</TableText> },
+          ]}
+        />
+      </Section>
+      <Section title="Connections table" icon="link">
+        <MobileRecordTable
+          items={[
+            ...integrations.map((item) => ({ ...item, group: "Integration" })),
+            ...userSources.map((item) => ({ ...item, group: "User source" })),
+          ]}
+          getKey={(item) => `${item.group}-${item.id}`}
+          emptyIcon="link"
+          emptyTitle="No connections"
+          emptyDescription="Application integrations and user sources will appear here."
+          footerLabel={`${integrations.length} integrations · ${userSources.length} user sources`}
+          columns={[
+            { key: "group", label: "Group", width: 140, render: (item) => <StatusBadge label={item.group} tone={item.group === "Integration" ? "good" : "neutral"} /> },
+            { key: "name", label: "Name", width: 210, render: (item) => <TableText strong>{item.name || `${item.type} #${item.id}`}</TableText> },
+            { key: "type", label: "Type", width: 180, render: (item) => <TableText>{item.type}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (item) => <TableText>#{item.id}</TableText> },
+          ]}
+        />
+      </Section>
+      <Section title="Snapshots table" icon="clock">
+        <MobileRecordTable
+          items={snapshots}
+          getKey={(snapshot) => String(snapshot.id)}
+          emptyIcon="clock"
+          emptyTitle="No snapshots"
+          emptyDescription="Create a snapshot to track publish-ready application states."
+          footerLabel={`${snapshots.length} snapshots`}
+          columns={[
+            { key: "id", label: "Snapshot", width: 150, render: (snapshot) => <TableText strong>#{snapshot.id}</TableText> },
+            { key: "created", label: "Created", width: 230, render: (snapshot) => <TableText>{snapshot.created_on || "—"}</TableText> },
+            { key: "creator", label: "Created by", width: 140, render: (snapshot) => <TableText>{snapshot.created_by_id ? `User #${snapshot.created_by_id}` : "—"}</TableText> },
+          ]}
+        />
+      </Section>
+    </>
+  );
+}
+
+function BuilderPreviewMode({
+  builderName,
+  pages,
+  domains,
+  firstPage,
+  publicBuilder,
+  publishedElements,
+  publishedDataSources,
+  publishedActions,
+  publicCss,
+  publicJs,
+  onOpenPage,
+  onDispatchPublicData,
+}: {
+  builderName: string;
+  pages: BaserowBuilderPage[];
+  domains: BaserowBuilderDomain[];
+  firstPage?: BaserowBuilderPage;
+  publicBuilder: unknown;
+  publishedElements: unknown;
+  publishedDataSources: unknown;
+  publishedActions: unknown;
+  publicCss?: string;
+  publicJs?: string;
+  onOpenPage: (page: BaserowBuilderPage) => void;
+  onDispatchPublicData: () => void;
+}) {
+  return (
+    <>
+      <Section title="Mobile navigation preview" icon="smartphone">
+        <Card>
+          <View style={styles.mobileNavFrame}>
+            <View style={styles.mobileNavHeader}>
+              <Text style={styles.itemTitle}>{builderName}</Text>
+              <Text style={styles.itemMeta}>{pages.length} pages · {firstPage?.path || "/"} home</Text>
+            </View>
+            <View style={styles.mobileNavList}>
+              {pages.length === 0 ? <Text style={styles.itemMeta}>Create pages to preview mobile navigation.</Text> : pages.map((page, index) => (
+                <Pressable key={page.id} onPress={() => onOpenPage(page)} style={styles.mobileNavItem}>
+                  <Feather name={index === 0 ? "home" : "file"} size={15} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.mobileNavLabel}>{page.name}</Text>
+                    <Text style={styles.mobileNavPath}>{page.path || "/"}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </Card>
+      </Section>
+      <Section title="Published preview" icon="eye">
+        {domains.length === 0 ? <EmptyState icon="eye" title="No published domain" description="Publish a domain first to preview public builder endpoints." /> : (
+          <>
+            <Card><Text style={styles.itemTitle}>Public builder JSON</Text><Text style={styles.jsonPreview} numberOfLines={6}>{JSON.stringify(publicBuilder ?? {}, null, 2)}</Text></Card>
+            <Card><Text style={styles.itemTitle}>Published page elements</Text><Text style={styles.jsonPreview} numberOfLines={6}>{JSON.stringify(publishedElements ?? {}, null, 2)}</Text></Card>
+            <Card><Text style={styles.itemTitle}>Published page data sources</Text><Text style={styles.jsonPreview} numberOfLines={6}>{JSON.stringify(publishedDataSources ?? {}, null, 2)}</Text><View style={styles.actionRow}><Pill label="Dispatch public data" onPress={onDispatchPublicData} /></View></Card>
+            <Card><Text style={styles.itemTitle}>Published page actions</Text><Text style={styles.jsonPreview} numberOfLines={6}>{JSON.stringify(publishedActions ?? {}, null, 2)}</Text></Card>
+            <Card><Text style={styles.itemTitle}>Published custom code</Text><Text style={styles.itemMeta}>CSS: {publicCss?.length ?? 0} chars · JS: {publicJs?.length ?? 0} chars</Text></Card>
+          </>
+        )}
+      </Section>
+    </>
+  );
 }
 
 function IntegrationFormModal({ form, loading, onClose, onChange, onSubmit }: { form: IntegrationFormState | null; loading?: boolean; onClose: () => void; onChange: (form: IntegrationFormState | null) => void; onSubmit: (payload: Record<string, unknown>) => void }) {
