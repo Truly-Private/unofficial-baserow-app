@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { JsonActionModal, type JsonAction } from "@/components/JsonActionModal";
 import { LoadingState } from "@/components/LoadingState";
+import { InsightCard, MobileRecordTable, StatusBadge, TableText, ViewModePills, type ViewModeOption } from "@/components/ViewOptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
@@ -39,6 +40,14 @@ import {
   type BaserowAutomationHistoryItem,
   type BaserowAutomationNode,
 } from "@/lib/baserow";
+
+type WorkflowViewMode = "map" | "table" | "cards";
+
+const WORKFLOW_VIEW_MODES: ViewModeOption<WorkflowViewMode>[] = [
+  { id: "map", label: "Map", icon: "git-branch" },
+  { id: "table", label: "Table", icon: "grid" },
+  { id: "cards", label: "Cards", icon: "list" },
+];
 
 type NodeKind = "trigger" | "action";
 
@@ -246,6 +255,7 @@ export default function WorkflowScreen() {
   const [nodeForm, setNodeForm] = React.useState<NodeFormState | null>(null);
   const [selectedHistory, setSelectedHistory] =
     React.useState<BaserowAutomationHistoryItem | null>(null);
+  const [workflowViewMode, setWorkflowViewMode] = React.useState<WorkflowViewMode>("map");
   const [testResult, setTestResult] = React.useState<{
     title: string;
     description: string;
@@ -373,12 +383,16 @@ export default function WorkflowScreen() {
         </View>
 
         <Section title="Nodes" icon="git-branch">
-          {nodes.length > 0 ? <WorkflowMap nodes={nodes} /> : null}
+          <ViewModePills options={WORKFLOW_VIEW_MODES} value={workflowViewMode} onChange={setWorkflowViewMode} />
           {nodes.length === 0 ? (
             <View style={styles.emptyBlock}>
               <EmptyState icon="git-branch" title="No nodes" description="Add trigger/action nodes with the guided mobile picker or the advanced JSON action." />
               <Button title="Create first node" onPress={() => setNodeForm(blankNodeForm(nodes))} />
             </View>
+          ) : workflowViewMode === "table" ? (
+            <WorkflowNodeTable nodes={nodes} onSimulate={(node) => simulateMutation.mutate(node.id)} />
+          ) : workflowViewMode === "map" ? (
+            <WorkflowMap nodes={nodes} />
           ) : nodes.map((node) => <Card key={node.id}>
             <View style={styles.rowTop}><View style={styles.iconWrap}><Feather name="zap" size={16} color={colors.mutedForeground} /></View><View style={{ flex: 1 }}><Text style={[styles.itemTitle, { color: colors.foreground }]}>{node.name || `${node.type} node`}</Text><Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>Type: {node.type}</Text></View><Pressable onPress={() => simulateMutation.mutate(node.id)} style={({ pressed }) => [styles.smallButton, { backgroundColor: colors.secondary, opacity: pressed ? 0.75 : 1 }]}><Text style={[styles.smallButtonText, { color: colors.primary }]}>Simulate</Text></Pressable></View>
             <NodeSummary node={node} />
@@ -429,6 +443,40 @@ export default function WorkflowScreen() {
     <RunHistoryModal item={selectedHistory} onClose={() => setSelectedHistory(null)} />
     <TestResultModal result={testResult} onClose={() => setTestResult(null)} />
   </View>;
+}
+
+function WorkflowNodeTable({
+  nodes,
+  onSimulate,
+}: {
+  nodes: BaserowAutomationNode[];
+  onSimulate: (node: BaserowAutomationNode) => void;
+}) {
+  const triggerCount = nodes.filter((node) => optionForNodeType(node.type).kind === "trigger").length;
+  const actionCount = nodes.length - triggerCount;
+  return (
+    <>
+      <InsightCard icon="radio" label="Triggers" value={String(triggerCount)} description="Nodes that start this workflow." />
+      <InsightCard icon="zap" label="Actions" value={String(actionCount)} description="Nodes that transform data or call services." />
+      <MobileRecordTable
+        items={nodes}
+        getKey={(node) => String(node.id)}
+        onRowPress={(node) => onSimulate(node)}
+        emptyIcon="git-branch"
+        emptyTitle="No nodes"
+        emptyDescription="Add trigger/action nodes to populate this workflow table."
+        footerLabel={`${nodes.length} nodes · tap a row to simulate`}
+        columns={[
+          { key: "name", label: "Name", width: 230, render: (node) => <TableText strong>{node.name || `${node.type} node`}</TableText> },
+          { key: "kind", label: "Kind", width: 130, render: (node) => <StatusBadge label={optionForNodeType(node.type).kind} tone={optionForNodeType(node.type).kind === "trigger" ? "good" : "neutral"} /> },
+          { key: "type", label: "Type", width: 240, render: (node) => <TableText>{node.type}</TableText> },
+          { key: "previous", label: "After", width: 120, render: (node) => <TableText>{node.previous_node_id ? `#${node.previous_node_id}` : "Start"}</TableText> },
+          { key: "order", label: "Order", width: 90, render: (node, index) => <TableText>{String(node.order ?? index)}</TableText> },
+          { key: "id", label: "ID", width: 90, render: (node) => <TableText>#{node.id}</TableText> },
+        ]}
+      />
+    </>
+  );
 }
 
 function NodeSummary({ node }: { node: BaserowAutomationNode }) {
