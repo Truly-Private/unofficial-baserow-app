@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { JsonActionModal, type JsonAction } from "@/components/JsonActionModal";
 import { LoadingState } from "@/components/LoadingState";
+import { InsightCard, MobileRecordTable, StatusBadge, TableText, ViewModePills, type ViewModeOption } from "@/components/ViewOptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
@@ -34,6 +35,14 @@ import {
   type BaserowDashboardWidget,
   type BaserowDataSource,
 } from "@/lib/baserow";
+
+type DashboardViewMode = "canvas" | "table" | "insights";
+
+const DASHBOARD_VIEW_MODES: ViewModeOption<DashboardViewMode>[] = [
+  { id: "canvas", label: "Canvas", icon: "layout" },
+  { id: "table", label: "Table", icon: "grid" },
+  { id: "insights", label: "Insights", icon: "activity" },
+];
 
 function labelForWidget(widget: BaserowDashboardWidget) {
   return widget.title || widget.name as string | undefined || `${widget.type} widget`;
@@ -296,6 +305,7 @@ export default function DashboardScreen() {
   const dashboardId = Number(params.id);
   const dashboardName = params.name || "Dashboard";
   const [action, setAction] = React.useState<(JsonAction & { run: (payload: Record<string, unknown>) => void }) | null>(null);
+  const [dashboardViewMode, setDashboardViewMode] = React.useState<DashboardViewMode>("canvas");
   const [widgetForm, setWidgetForm] = React.useState<{
     mode: WidgetFormMode;
     widget: BaserowDashboardWidget | null;
@@ -467,6 +477,34 @@ export default function DashboardScreen() {
             </View>
           </View>
 
+          <ViewModePills options={DASHBOARD_VIEW_MODES} value={dashboardViewMode} onChange={setDashboardViewMode} />
+          {dashboardViewMode === "table" ? (
+            <DashboardTableMode
+              widgets={widgets}
+              dataSources={dataSources}
+              snapshots={snapshotsQuery.data ?? []}
+              integrations={integrationsQuery.data ?? []}
+              userSources={userSourcesQuery.data ?? []}
+              onEditWidget={(widget) =>
+                setWidgetForm({
+                  mode: "edit",
+                  widget,
+                  form: formFromWidget(widget, dataSources),
+                })
+              }
+              onRefreshSource={(source) => dispatchMutation.mutate(source)}
+            />
+          ) : dashboardViewMode === "insights" ? (
+            <DashboardInsightsMode
+              widgets={widgets}
+              dataSources={dataSources}
+              applicationName={applicationQuery.data?.name || dashboardName}
+              dashboardType={applicationQuery.data?.type || "dashboard"}
+              userDashboard={userDashboardQuery.data}
+              adminDashboard={adminDashboardQuery.data}
+            />
+          ) : (
+            <>
           <Section title="Application" icon="box">
             <Card>
               <Text style={[styles.itemTitle, { color: colors.foreground }]}>
@@ -723,6 +761,8 @@ export default function DashboardScreen() {
               </Text>
             </Card>
           </Section>
+            </>
+          )}
         </ScrollView>
       )}
       <WidgetFormModal
@@ -748,6 +788,131 @@ export default function DashboardScreen() {
         onSubmit={(payload) => action?.run(payload)}
       />
     </View>
+  );
+}
+
+function DashboardTableMode({
+  widgets,
+  dataSources,
+  snapshots,
+  integrations,
+  userSources,
+  onEditWidget,
+  onRefreshSource,
+}: {
+  widgets: BaserowDashboardWidget[];
+  dataSources: BaserowDataSource[];
+  snapshots: { id: number; created_on?: string; [key: string]: unknown }[];
+  integrations: { id: number; name?: string; type?: string; [key: string]: unknown }[];
+  userSources: { id: number; name?: string; type?: string; [key: string]: unknown }[];
+  onEditWidget: (widget: BaserowDashboardWidget) => void;
+  onRefreshSource: (source: BaserowDataSource) => void;
+}) {
+  return (
+    <>
+      <InsightCard icon="grid" label="Widgets" value={String(widgets.length)} description="Desktop-like widget inventory with layout coordinates." />
+      <InsightCard icon="database" label="Data sources" value={String(dataSources.length)} description="Connected sources available for dashboard cards and charts." />
+      <Section title="Widgets table" icon="grid">
+        <MobileRecordTable
+          items={widgets}
+          getKey={(widget) => String(widget.id)}
+          onRowPress={(widget) => onEditWidget(widget)}
+          emptyIcon="grid"
+          emptyTitle="No widgets"
+          emptyDescription="Create widgets to populate this dashboard table."
+          footerLabel={`${widgets.length} widgets · tap a row to edit`}
+          columns={[
+            { key: "title", label: "Title", width: 220, render: (widget) => <TableText strong>{labelForWidget(widget)}</TableText> },
+            { key: "type", label: "Type", width: 150, render: (widget) => <StatusBadge label={widgetTypeOption(widget.type).label} tone={widget.type === "table" ? "good" : "neutral"} /> },
+            { key: "layout", label: "Layout", width: 180, render: (widget) => <TableText>R{numericWidgetLayoutValue(widget.row, 0, 0)} C{numericWidgetLayoutValue(widget.col, 0, 0)} · {numericWidgetLayoutValue(widget.width, 4, 1)}×{numericWidgetLayoutValue(widget.height, 3, 1)}</TableText> },
+            { key: "source", label: "Source", width: 160, render: (widget) => <TableText>{widget.data_source_id ?? widget.data_source?.id ? `#${widget.data_source_id ?? widget.data_source?.id}` : "—"}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (widget) => <TableText>#{widget.id}</TableText> },
+          ]}
+        />
+      </Section>
+      <Section title="Data source table" icon="database">
+        <MobileRecordTable
+          items={dataSources}
+          getKey={(source) => String(source.id)}
+          onRowPress={(source) => onRefreshSource(source)}
+          emptyIcon="database"
+          emptyTitle="No data sources"
+          emptyDescription="Connect data sources from desktop or widget payloads to see them here."
+          footerLabel={`${dataSources.length} data sources · tap a row to refresh`}
+          columns={[
+            { key: "name", label: "Name", width: 230, render: (source) => <TableText strong>{dataSourceName(source)}</TableText> },
+            { key: "type", label: "Type", width: 190, render: (source) => <TableText>{source.type}</TableText> },
+            { key: "schema", label: "Schema", width: 170, render: (source) => <TableText>{source.schema_property || "—"}</TableText> },
+            { key: "order", label: "Order", width: 90, render: (source, index) => <TableText>{String(source.order ?? index)}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (source) => <TableText>#{source.id}</TableText> },
+          ]}
+        />
+      </Section>
+      <Section title="Application metadata table" icon="hash">
+        <MobileRecordTable
+          items={[
+            ...snapshots.map((item) => ({ id: item.id, group: "Snapshot", name: `Snapshot #${item.id}`, detail: item.created_on || "—" })),
+            ...integrations.map((item) => ({ id: item.id, group: "Integration", name: item.name || `${item.type} #${item.id}`, detail: item.type || "—" })),
+            ...userSources.map((item) => ({ id: item.id, group: "User source", name: item.name || `${item.type} #${item.id}`, detail: item.type || "—" })),
+          ]}
+          getKey={(item) => `${item.group}-${item.id}`}
+          emptyIcon="hash"
+          emptyTitle="No metadata"
+          emptyDescription="Snapshots, integrations, and user sources will appear in one audit table."
+          footerLabel={`${snapshots.length} snapshots · ${integrations.length} integrations · ${userSources.length} user sources`}
+          columns={[
+            { key: "group", label: "Group", width: 150, render: (item) => <StatusBadge label={item.group} tone={item.group === "Integration" ? "good" : "neutral"} /> },
+            { key: "name", label: "Name", width: 230, render: (item) => <TableText strong>{item.name}</TableText> },
+            { key: "detail", label: "Detail", width: 230, render: (item) => <TableText>{item.detail}</TableText> },
+            { key: "id", label: "ID", width: 90, render: (item) => <TableText>#{item.id}</TableText> },
+          ]}
+        />
+      </Section>
+    </>
+  );
+}
+
+function DashboardInsightsMode({
+  widgets,
+  dataSources,
+  applicationName,
+  dashboardType,
+  userDashboard,
+  adminDashboard,
+}: {
+  widgets: BaserowDashboardWidget[];
+  dataSources: BaserowDataSource[];
+  applicationName: string;
+  dashboardType: string;
+  userDashboard: unknown;
+  adminDashboard: unknown;
+}) {
+  const colors = useColors();
+  const chartCount = widgets.filter((widget) => widget.type.includes("chart")).length;
+  const tableCount = widgets.filter((widget) => widget.type === "table").length;
+  const connectedWidgets = widgets.filter((widget) => widget.data_source_id || widget.data_source?.id).length;
+  return (
+    <>
+      <InsightCard icon="box" label="Application" value={applicationName} description={`Type: ${dashboardType}`} />
+      <InsightCard icon="bar-chart-2" label="Charts" value={String(chartCount)} description="Chart widgets configured for visual reporting." />
+      <InsightCard icon="grid" label="Tables" value={String(tableCount)} description="Table widgets for spreadsheet-style dashboard sections." />
+      <InsightCard icon="link" label="Connected widgets" value={`${connectedWidgets}/${widgets.length}`} description="Widgets linked to dashboard data sources." />
+      <Section title="Widget mix" icon="pie-chart">
+        <Card>
+          <Text style={[styles.itemTitle, { color: colors.foreground }]}>Desktop parity coverage</Text>
+          <Text style={[styles.itemMeta, { color: colors.mutedForeground }]}>Summary, chart, table, text, and link widgets can be created or edited from mobile.</Text>
+          <View style={styles.actionRow}>
+            <StatusBadge label={`${dataSources.length} sources`} tone={dataSources.length ? "good" : "neutral"} />
+            <StatusBadge label={`${widgets.length} widgets`} tone={widgets.length ? "good" : "neutral"} />
+            <StatusBadge label={`${chartCount} charts`} tone={chartCount ? "good" : "neutral"} />
+          </View>
+        </Card>
+      </Section>
+      <Section title="Endpoint snapshots" icon="monitor">
+        <Card><Text style={[styles.itemTitle, { color: colors.foreground }]}>User dashboard</Text><Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={6}>{JSON.stringify(userDashboard ?? {}, null, 2)}</Text></Card>
+        <Card><Text style={[styles.itemTitle, { color: colors.foreground }]}>Admin dashboard</Text><Text style={[styles.jsonPreview, { color: colors.mutedForeground }]} numberOfLines={6}>{JSON.stringify(adminDashboard ?? {}, null, 2)}</Text></Card>
+      </Section>
+    </>
   );
 }
 
