@@ -541,6 +541,7 @@ export default function TableScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.toolbar}
+            style={styles.toolbarScroll}
           >
             <View style={styles.toolbarSection}>
               <View
@@ -1407,10 +1408,15 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
+  toolbarScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   toolbar: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingVertical: 4,
     gap: 10,
+    alignItems: "center",
   },
   toolbarSection: {
     flexDirection: "row",
