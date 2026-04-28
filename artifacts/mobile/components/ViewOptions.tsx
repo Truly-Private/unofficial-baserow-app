@@ -95,10 +95,10 @@ export function MobileRecordTable<T>({
   }
 
   return (
-    <View style={[styles.tableFrame, { borderColor: colors.border, backgroundColor: colors.card, borderRadius: colors.radius }]}> 
+    <View style={[styles.tableFrame, { borderColor: colors.border, backgroundColor: colors.card, borderRadius: colors.radius }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View style={{ minWidth: totalWidth }}>
-          <View style={[styles.tableHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}> 
+          <View style={[styles.tableHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             {columns.map((column) => (
               <View
                 key={column.key}
@@ -171,7 +171,7 @@ export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?:
           ? { background: colors.muted, foreground: colors.foreground }
           : { background: colors.muted, foreground: colors.mutedForeground };
   return (
-    <View style={[styles.badge, { backgroundColor: palette.background }]}> 
+    <View style={[styles.badge, { backgroundColor: palette.background }]}>
       <Text style={[styles.badgeText, { color: palette.foreground }]} numberOfLines={1}>{label}</Text>
     </View>
   );
@@ -180,8 +180,8 @@ export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?:
 export function InsightCard({ icon, label, value, description }: { icon: keyof typeof Feather.glyphMap; label: string; value: string; description: string }) {
   const colors = useColors();
   return (
-    <View style={[styles.insightCard, { borderColor: colors.border, backgroundColor: colors.card, borderRadius: colors.radius }]}> 
-      <View style={[styles.insightIcon, { backgroundColor: colors.secondary }]}> 
+    <View style={[styles.insightCard, { borderColor: colors.border, backgroundColor: colors.card, borderRadius: colors.radius }]}>
+      <View style={[styles.insightIcon, { backgroundColor: colors.secondary }]}>
         <Feather name={icon} size={16} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
