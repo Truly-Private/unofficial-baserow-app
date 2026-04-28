@@ -8,6 +8,8 @@ import {
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  type StyleProp,
+  type ViewStyle,
   ActivityIndicator,
   Alert,
   FlatList,
@@ -51,6 +53,7 @@ import {
 } from "@/lib/baserow";
 
 const PAGE_SIZE = 50;
+type DisplayMode = "spreadsheet" | "cards";
 
 export default function TableScreen() {
   const colors = useColors();
@@ -78,6 +81,7 @@ export default function TableScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("spreadsheet");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -402,6 +406,47 @@ export default function TableScreen() {
     );
   };
 
+  const openRow = useCallback(
+    (row: BaserowRow) => {
+      router.push({
+        pathname: "/(app)/row/[tableId]/[rowId]",
+        params: {
+          tableId: String(tableId),
+          rowId: String(row.id),
+          tableName,
+        },
+      });
+    },
+    [tableId, tableName],
+  );
+
+  const handleRowPress = useCallback(
+    (row: BaserowRow) => {
+      if (selectionMode) {
+        toggleRowSelected(row.id);
+        return;
+      }
+      openRow(row);
+    },
+    [openRow, selectionMode, toggleRowSelected],
+  );
+
+  const handleRowLongPress = useCallback(
+    (row: BaserowRow) => {
+      if (selectionMode) {
+        toggleRowSelected(row.id);
+        return;
+      }
+      setSelectionMode(true);
+      setSelectedRowIds([row.id]);
+    },
+    [selectionMode, toggleRowSelected],
+  );
+
+  const isSpreadsheetMode =
+    displayMode === "spreadsheet" &&
+    (!selectedView || selectedView.type === "grid");
+
   return (
     <View style={[styles.fill, { backgroundColor: colors.background }]}>
       <Stack.Screen
@@ -545,6 +590,80 @@ export default function TableScreen() {
 
             <View style={styles.toolbarSection}>
               <Pressable
+                onPress={() => setDisplayMode("spreadsheet")}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor:
+                      displayMode === "spreadsheet"
+                        ? colors.primary
+                        : colors.surface,
+                    borderColor:
+                      displayMode === "spreadsheet"
+                        ? colors.primary
+                        : colors.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="grid"
+                  size={14}
+                  color={
+                    displayMode === "spreadsheet"
+                      ? colors.primaryForeground
+                      : colors.foreground
+                  }
+                />
+                <Text
+                  style={[
+                    styles.pillLabel,
+                    {
+                      color:
+                        displayMode === "spreadsheet"
+                          ? colors.primaryForeground
+                          : colors.foreground,
+                    },
+                  ]}
+                >
+                  Table
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDisplayMode("cards")}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor:
+                      displayMode === "cards" ? colors.primary : colors.surface,
+                    borderColor:
+                      displayMode === "cards" ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="list"
+                  size={14}
+                  color={
+                    displayMode === "cards"
+                      ? colors.primaryForeground
+                      : colors.foreground
+                  }
+                />
+                <Text
+                  style={[
+                    styles.pillLabel,
+                    {
+                      color:
+                        displayMode === "cards"
+                          ? colors.primaryForeground
+                          : colors.foreground,
+                    },
+                  ]}
+                >
+                  Cards
+                </Text>
+              </Pressable>
+              <Pressable
                 onPress={() => setSortModalOpen(true)}
                 style={[
                   styles.pill,
@@ -681,11 +800,30 @@ export default function TableScreen() {
               fields={fields}
               submitLabel="Add Row"
               onCancel={() => setFormModalOpen(false)}
-              onSubmit={(data) => {
-                // TODO: Create row via API
-                console.log("Form submitted:", data);
+              onSubmit={() => {
                 setFormModalOpen(false);
+                router.push({
+                  pathname: "/(app)/row/[tableId]/new",
+                  params: {
+                    tableId: String(tableId),
+                    tableName,
+                  },
+                });
               }}
+            />
+          ) : isSpreadsheetMode ? (
+            <SpreadsheetTable
+              rows={flatRows}
+              fields={fields}
+              selectedRowSet={selectedRowSet}
+              selectionMode={selectionMode}
+              bottomPad={bottomPad + (selectionMode ? 124 : 24)}
+              totalRows={totalRows}
+              hasMore={totalRows > flatRows.length || !!rowsQuery.hasNextPage}
+              loadingMore={rowsQuery.isFetchingNextPage}
+              onLoadMore={() => rowsQuery.fetchNextPage()}
+              onRowPress={handleRowPress}
+              onRowLongPress={handleRowLongPress}
             />
           ) : (
             <FlatList
@@ -808,6 +946,249 @@ export default function TableScreen() {
       )}
     </View>
   );
+}
+
+function SpreadsheetTable({
+  rows,
+  fields,
+  selectedRowSet,
+  selectionMode,
+  bottomPad,
+  totalRows,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  onRowPress,
+  onRowLongPress,
+}: {
+  rows: BaserowRow[];
+  fields: BaserowField[];
+  selectedRowSet: Set<number>;
+  selectionMode: boolean;
+  bottomPad: number;
+  totalRows: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  onRowPress: (row: BaserowRow) => void;
+  onRowLongPress: (row: BaserowRow) => void;
+}) {
+  const colors = useColors();
+  const visibleFields = fields.length > 0 ? fields : [];
+  const tableMinWidth =
+    ROW_NUMBER_COLUMN_WIDTH +
+    visibleFields.reduce((sum, field) => sum + fieldColumnWidth(field), 0);
+
+  return (
+    <ScrollView
+      style={styles.spreadsheetOuter}
+      contentContainerStyle={{ paddingBottom: bottomPad }}
+      showsVerticalScrollIndicator
+    >
+      <View
+        style={[
+          styles.spreadsheetFrame,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          <View style={{ minWidth: tableMinWidth }}>
+            <View
+              style={[
+                styles.gridHeaderRow,
+                {
+                  backgroundColor: colors.surface,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.rowNumberHeader,
+                  {
+                    width: ROW_NUMBER_COLUMN_WIDTH,
+                    borderRightColor: colors.border,
+                  },
+                ]}
+              >
+                <Feather name="hash" size={13} color={colors.mutedForeground} />
+              </View>
+              {visibleFields.map((field) => (
+                <View
+                  key={field.id}
+                  style={[
+                    styles.gridHeaderCell,
+                    fieldColumnStyle(field),
+                    { borderRightColor: colors.border },
+                  ]}
+                >
+                  <Feather
+                    name={fieldIcon(field)}
+                    size={13}
+                    color={field.primary ? colors.primary : colors.mutedForeground}
+                  />
+                  <Text
+                    style={[
+                      styles.gridHeaderText,
+                      { color: colors.foreground },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {field.name}
+                  </Text>
+                  {field.primary ? (
+                    <View
+                      style={[
+                        styles.primaryBadge,
+                        { backgroundColor: colors.secondary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.primaryBadgeText,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        Primary
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+
+            {rows.map((row, rowIndex) => {
+              const selected = selectedRowSet.has(row.id);
+              return (
+                <View
+                  key={row.id}
+                  style={[
+                    styles.gridDataRow,
+                    {
+                      backgroundColor: selected ? colors.secondary : colors.card,
+                      borderBottomColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => onRowPress(row)}
+                    onLongPress={() => onRowLongPress(row)}
+                    delayLongPress={320}
+                    style={({ pressed }) => [
+                      styles.rowNumberCell,
+                      {
+                        width: ROW_NUMBER_COLUMN_WIDTH,
+                        backgroundColor: pressed ? colors.surface : "transparent",
+                        borderRightColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {selectionMode ? (
+                      <Feather
+                        name={selected ? "check-square" : "square"}
+                        size={15}
+                        color={selected ? colors.primary : colors.mutedForeground}
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.rowNumberText,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        {rowIndex + 1}
+                      </Text>
+                    )}
+                  </Pressable>
+                  {visibleFields.map((field) => (
+                    <Pressable
+                      key={`${row.id}-${field.id}`}
+                      onPress={() => onRowPress(row)}
+                      onLongPress={() => onRowLongPress(row)}
+                      delayLongPress={320}
+                      style={({ pressed }) => [
+                        styles.gridCell,
+                        fieldColumnStyle(field),
+                        {
+                          backgroundColor: pressed ? colors.surface : "transparent",
+                          borderRightColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <FieldDisplay field={field} value={row[field.name]} compact />
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+
+      <View style={styles.footer}>
+        {hasMore ? (
+          <Button
+            title={loadingMore ? "Loading more…" : `Load more (${rows.length}/${totalRows})`}
+            onPress={onLoadMore}
+            loading={loadingMore}
+            style={styles.loadMoreBtn}
+          />
+        ) : null}
+        <Text style={[styles.footerHint, { color: colors.mutedForeground }]}>
+          Spreadsheet table · Showing {rows.length} of {totalRows} rows
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+const ROW_NUMBER_COLUMN_WIDTH = 56;
+
+function fieldColumnWidth(field: BaserowField) {
+  if (field.primary) return 220;
+  if (field.type === "long_text") return 260;
+  if (field.type === "boolean" || field.type === "rating") return 128;
+  if (field.type === "date" || field.type === "created_on" || field.type === "last_modified") return 180;
+  if (field.type === "file" || field.type === "link_row") return 220;
+  return 176;
+}
+
+function fieldColumnStyle(field: BaserowField): StyleProp<ViewStyle> {
+  return { width: fieldColumnWidth(field) };
+}
+
+function fieldIcon(field: BaserowField): keyof typeof Feather.glyphMap {
+  if (field.primary) return "key";
+  switch (field.type) {
+    case "number":
+    case "rating":
+      return "hash";
+    case "boolean":
+      return "check-square";
+    case "date":
+    case "created_on":
+    case "last_modified":
+      return "calendar";
+    case "single_select":
+    case "multiple_select":
+      return "tag";
+    case "file":
+      return "paperclip";
+    case "link_row":
+      return "link";
+    case "url":
+      return "external-link";
+    case "email":
+      return "mail";
+    case "phone_number":
+      return "phone";
+    default:
+      return "type";
+  }
 }
 
 function MetaChip({ label }: { label: string }) {
@@ -1100,6 +1481,69 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     width: 80,
+  },
+  spreadsheetOuter: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  spreadsheetFrame: {
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  gridHeaderRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    borderBottomWidth: 1,
+  },
+  rowNumberHeader: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+  },
+  gridHeaderCell: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    borderRightWidth: 1,
+  },
+  gridHeaderText: {
+    flex: 1,
+    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+  },
+  primaryBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  primaryBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+  },
+  gridDataRow: {
+    minHeight: 52,
+    flexDirection: "row",
+    borderBottomWidth: 1,
+  },
+  rowNumberCell: {
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+  },
+  rowNumberText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+  },
+  gridCell: {
+    minHeight: 52,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRightWidth: 1,
   },
   footer: {
     paddingTop: 16,
