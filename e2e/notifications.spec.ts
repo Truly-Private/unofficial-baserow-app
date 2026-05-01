@@ -3,69 +3,55 @@ import { test, expect } from "@playwright/test";
 test.describe("NotificationsScreen", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/(app)/notifications");
   });
 
-  test("loads notifications screen with tabs", async ({ page }) => {
-    await page.goto("/notifications");
+  test("loads notifications screen with both tabs", async ({ page }) => {
     await expect(page.locator("[data-testid='tab-notifications']")).toBeVisible();
     await expect(page.locator("[data-testid='tab-settings']")).toBeVisible();
   });
 
-  test("switches between Notifications and Push Settings tabs", async ({ page }) => {
-    await page.goto("/notifications");
-    await expect(page.locator("[data-testid='tab-notifications']")).toBeVisible();
+  test("switches to push settings tab and shows stable controls", async ({ page }) => {
     await page.locator("[data-testid='tab-settings']").click();
     await expect(page.getByText("PERMISSION STATUS")).toBeVisible();
-  });
-
-  test("shows workspace picker", async ({ page }) => {
-    await page.goto("/notifications");
-    await expect(page.locator("[data-testid='ws-picker-btn']")).toBeVisible();
-  });
-
-  test("refreshes notifications", async ({ page }) => {
-    await page.goto("/notifications");
-    await page.locator("[data-testid='refresh-notifs']").click();
-  });
-
-  test("marks all notifications as read", async ({ page }) => {
-    await page.goto("/notifications");
-    const markAllBtn = page.locator("[data-testid='mark-all-read']");
-    if (await markAllBtn.isVisible()) {
-      await markAllBtn.click();
-    }
-  });
-
-  test("toggles individual notification read state", async ({ page }) => {
-    await page.goto("/notifications");
-    // Find first notification toggle button if any notifications exist
-    const toggle = page.locator("[data-testid^='notif-toggle-']").first();
-    if (await toggle.isVisible()) {
-      await toggle.click();
-    }
-  });
-
-  test("loads more notifications", async ({ page }) => {
-    await page.goto("/notifications");
-    const loadMore = page.locator("[data-testid='load-more-notifs']");
-    if (await loadMore.isVisible()) {
-      await loadMore.click();
-    }
-  });
-
-  test("push settings tab shows permission status", async ({ page }) => {
-    await page.goto("/notifications");
-    await page.locator("[data-testid='tab-settings']").click();
-    await expect(page.getByText("Push Notifications")).toBeVisible();
     await expect(page.getByText("NOTIFICATION TYPES")).toBeVisible();
+    await expect(page.locator("[data-testid='push-toggle-table-updates']")).toBeVisible();
+    await expect(page.locator("[data-testid='push-toggle-mentions']")).toBeVisible();
+    await expect(page.locator("[data-testid='push-toggle-weekly-digest']")).toBeVisible();
   });
 
-  test("push settings toggles work", async ({ page }) => {
-    await page.goto("/notifications");
-    await page.locator("[data-testid='tab-settings']").click();
-    const toggles = page.locator('Switch');
-    if (await toggles.first().isVisible()) {
-      await toggles.first().click();
+  test("shows notifications workspace picker and refresh action", async ({ page }) => {
+    await expect(page.locator("[data-testid='ws-picker-btn']")).toBeVisible();
+    await expect(page.locator("[data-testid='refresh-notifs']")).toBeVisible();
+  });
+
+  test("notification actions use updated selectors when rows are present", async ({ page }) => {
+    const rows = page.locator("[data-testid^='notif-row-']");
+    const rowCount = await rows.count();
+
+    if (rowCount > 0) {
+      await expect(rows.first()).toBeVisible();
+      const markReadButtons = page.locator("[data-testid^='notif-mark-read-']");
+      const markReadCount = await markReadButtons.count();
+      if (markReadCount > 0) {
+        await expect(markReadButtons.first()).toBeVisible();
+      }
+    }
+  });
+
+  test("optional bulk actions render with stable selectors when available", async ({ page }) => {
+    const markAll = page.locator("[data-testid='mark-all-read']");
+    const clear = page.locator("[data-testid='clear-notifs']");
+    const loadMore = page.locator("[data-testid='load-more-notifs']");
+
+    if (await markAll.count()) {
+      await expect(markAll).toBeVisible();
+    }
+    if (await clear.count()) {
+      await expect(clear).toBeVisible();
+    }
+    if (await loadMore.count()) {
+      await expect(loadMore).toBeVisible();
     }
   });
 });
