@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -58,12 +58,13 @@ import {
   type BaserowBuilderPage,
 } from "@/lib/baserow";
 
-type BuilderViewMode = "overview" | "table" | "preview";
+type BuilderViewMode = "overview" | "table" | "preview" | "theme";
 
 const BUILDER_VIEW_MODES: ViewModeOption<BuilderViewMode>[] = [
   { id: "overview", label: "Overview", icon: "layout" },
   { id: "table", label: "Table", icon: "grid" },
   { id: "preview", label: "Preview", icon: "smartphone" },
+  { id: "theme", label: "Theme", icon: "sliders" },
 ];
 
 type IntegrationFormState = {
@@ -324,7 +325,15 @@ export default function BuilderScreen() {
         </View>
 
         <ViewModePills options={BUILDER_VIEW_MODES} value={builderViewMode} onChange={setBuilderViewMode} />
-        {builderViewMode === "table" ? (
+        {builderViewMode === "theme" ? (
+          <BuilderThemeEditor
+            builderId={builderId}
+            builderName={builderName}
+            actionMutation={actionMutation}
+            apiCall={apiCall}
+            colors={colors}
+          />
+        ) : builderViewMode === "table" ? (
           <BuilderInventoryTables
             pages={pages}
             domains={domains}
@@ -488,6 +497,171 @@ export default function BuilderScreen() {
     <UserSourceFormModal form={userSourceForm} integrations={integrations} loading={actionMutation.isPending} onClose={() => setUserSourceForm(null)} onChange={setUserSourceForm} onSubmit={(payload) => actionMutation.mutate(() => apiCall((c) => createApplicationUserSource(c, builderId, payload)))} />
     <JsonActionModal action={jsonAction} loading={actionMutation.isPending} onClose={() => setJsonAction(null)} onSubmit={(payload) => jsonAction?.run(payload)} />
   </View>;
+}
+
+// ─── Builder Theme Editor ─────────────────────────────────────────────────────
+
+type ThemeColorKey =
+  | "primary_color"
+  | "secondary_color"
+  | "border_color"
+  | "main_success_color"
+  | "main_warning_color"
+  | "main_error_color";
+
+const COLOR_PRESETS = [
+  "#3B82F6", // Blue
+  "#8B5CF6", // Violet
+  "#EC4899", // Pink
+  "#EF4444", // Red
+  "#F97316", // Orange
+  "#EAB308", // Yellow
+  "#22C55E", // Green
+  "#14B8A6", // Teal
+  "#06B6D4", // Cyan
+  "#6366F1", // Indigo
+  "#A855F7", // Purple
+  "#64748B", // Slate
+];
+
+function ColorSwatch({
+  label,
+  value,
+  onChange,
+  colors,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [hex, setHex] = useState(value);
+
+  useEffect(() => { setHex(value); }, [value]);
+
+  return (
+    <View style={styles.colorSwatchWrap}>
+      <View style={styles.colorSwatchRow}>
+        <View style={[styles.colorPreview, { backgroundColor: value }]} />
+        <TextInput
+          value={hex}
+          onChangeText={(t) => setHex(t)}
+          onBlur={() => {
+            const cleaned = hex.startsWith("#") ? hex : `#${hex}`;
+            if (/^#[0-9A-Fa-f]{6}$/.test(cleaned)) onChange(cleaned);
+          }}
+          placeholder="#000000"
+          placeholderTextColor={colors.mutedForeground}
+          style={[styles.colorHexInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+          autoCapitalize="characters"
+          maxLength={7}
+        />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+        {COLOR_PRESETS.map((color) => (
+          <Pressable
+            key={color}
+            onPress={() => { setHex(color); onChange(color); }}
+            style={[styles.colorPreset, { backgroundColor: color, borderColor: value === color ? colors.foreground : "transparent" }]}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function BuilderThemeEditor({
+  builderId,
+  builderName,
+  actionMutation,
+  apiCall,
+  colors,
+}: {
+  builderId: number;
+  builderName: string;
+  actionMutation: ReturnType<typeof useQuery> extends { mutate: infer M } ? M extends (cb: () => Promise<unknown>) => void ? ReturnType<M> : never : never;
+  apiCall: (fn: (c: ReturnType<typeof useAuth>["apiCall"] extends (x: infer F) => unknown ? F : never) => Promise<unknown>) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [themeDraft, setThemeDraft] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (patch: Record<string, unknown>) => {
+    setSaving(true);
+    try {
+      await (actionMutation as unknown as { mutate: (fn: () => Promise<unknown>) => void }).mutate(() =>
+        apiCall((c) => updateBuilderTheme(c, builderId, patch))
+      );
+      setThemeDraft((prev) => ({ ...prev, ...patch }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setColor = (key: ThemeColorKey, value: string) => {
+    handleSave({ [key]: value });
+  };
+
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, marginTop: 12, marginHorizontal: 0 }]}>
+      <Text style={[styles.itemTitle, { color: colors.foreground }]}>Theme Customization</Text>
+      <Text style={[styles.itemMeta, { color: colors.mutedForeground, marginBottom: 16 }]}>
+        Customize the look and feel of "{builderName}" on mobile.
+      </Text>
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>Primary Color</Text>
+      <ColorSwatch
+        label="Primary"
+        value={(themeDraft as Record<string, string>).primary_color || "#3B82F6"}
+        onChange={(v) => setColor("primary_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8, marginTop: 16 }]}>Secondary Color</Text>
+      <ColorSwatch
+        label="Secondary"
+        value={(themeDraft as Record<string, string>).secondary_color || "#8B5CF6"}
+        onChange={(v) => setColor("secondary_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8, marginTop: 16 }]}>Border Color</Text>
+      <ColorSwatch
+        label="Border"
+        value={(themeDraft as Record<string, string>).border_color || "#E2E8F0"}
+        onChange={(v) => setColor("border_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8, marginTop: 16 }]}>Success Color</Text>
+      <ColorSwatch
+        label="Success"
+        value={(themeDraft as Record<string, string>).main_success_color || "#22C55E"}
+        onChange={(v) => setColor("main_success_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8, marginTop: 16 }]}>Warning Color</Text>
+      <ColorSwatch
+        label="Warning"
+        value={(themeDraft as Record<string, string>).main_warning_color || "#EAB308"}
+        onChange={(v) => setColor("main_warning_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8, marginTop: 16 }]}>Error Color</Text>
+      <ColorSwatch
+        label="Error"
+        value={(themeDraft as Record<string, string>).main_error_color || "#EF4444"}
+        onChange={(v) => setColor("main_error_color", v)}
+        colors={colors}
+      />
+
+      <Text style={[styles.itemMeta, { color: colors.mutedForeground, marginTop: 16 }]}>
+        {saving ? "Saving…" : "Changes are saved automatically when you pick a color."}
+      </Text>
+    </View>
+  );
 }
 
 function BuilderInventoryTables({
@@ -755,4 +929,10 @@ const styles = StyleSheet.create({
   mobileNavItem: { borderWidth: 1, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   mobileNavLabel: { fontSize: 14, fontFamily: "Inter_700Bold" },
   mobileNavPath: { marginTop: 2, fontSize: 12, fontFamily: "Inter_400Regular" },
+  // Theme editor
+  colorSwatchWrap: { marginBottom: 4 },
+  colorSwatchRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  colorPreview: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "rgba(0,0,0,0.1)" },
+  colorHexInput: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, fontFamily: "Inter_400Regular" },
+  colorPreset: { width: 28, height: 28, borderRadius: 14, marginRight: 6, borderWidth: 2 },
 });
