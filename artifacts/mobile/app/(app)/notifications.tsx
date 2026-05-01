@@ -1,252 +1,521 @@
-import { StyleSheet, Switch, Text, View } from "react-native";
+/**
+ * NotificationsScreen — full Baserow notifications management.
+ * Two tabs:
+ *   1. Notifications — list, mark read/unread, mark all read, delete
+ *   2. Push Settings — local push notification preferences
+ */
+
+import { Feather } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack } from "expo-router";
+import { useState } from "react";
+import {
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import {
+  listApplications,
+  listWorkspaces,
+  type BaserowNotification,
+} from "@/lib/baserow";
+
+type NotificationTab = "notifications" | "settings";
+
+// ─── API types & helpers ────────────────────────────────────────────────────
+
+export type BaserowNotification = {
+  id: number;
+  workspace_id: number;
+  notification_type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  sender_user_id: number | null;
+  sender_name: string | null;
+  action_url: string | null;
+  created_on: string;
+  modified_on: string;
+};
+
+export async function listNotifications(
+  creds: { baseUrl: string; jwt: string },
+  workspaceId: number,
+  params?: { limit?: number; offset?: number },
+): Promise<{ results: BaserowNotification[]; count: number }> {
+  const { request } = await import("@/lib/baserow");
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return request<{ results: BaserowNotification[]; count: number }>(
+    creds.baseUrl,
+    `/api/notifications/${workspaceId}/${qs}`,
+    { headers: { Authorization: `JWT ${creds.jwt}` } },
+  );
+}
+
+export async function markNotificationRead(
+  creds: { baseUrl: string; jwt: string },
+  workspaceId: number,
+  notificationId: number,
+  isRead: boolean,
+): Promise<BaserowNotification> {
+  const { request } = await import("@/lib/baserow");
+  return request<BaserowNotification>(
+    creds.baseUrl,
+    `/api/notifications/${workspaceId}/${notificationId}/`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `JWT ${creds.jwt}` },
+      body: JSON.stringify({ is_read: isRead }),
+    },
+  );
+}
+
+export async function markAllNotificationsRead(
+  creds: { baseUrl: string; jwt: string },
+  workspaceId: number,
+): Promise<void> {
+  const { request } = await import("@/lib/baserow");
+  await request<void>(creds.baseUrl, `/api/notifications/${workspaceId}/mark-all-as-read/`, {
+    method: "POST",
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+}
+
+// ─── Notification row ───────────────────────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function notificationIcon(type: string): keyof typeof Feather.glyphMap {
+  if (type.includes("comment") || type.includes("mention")) return "message-circle";
+  if (type.includes("automation") || type.includes("workflow")) return "zap";
+  if (type.includes("invitation") || type.includes("invite")) return "mail";
+  if (type.includes("share") || type.includes("access")) return "share";
+  return "bell";
+}
+
+function notificationColor(type: string, colors: { primary: string; muted: string; mutedForeground: string }): string {
+  if (type.includes("comment") || type.includes("mention")) return "#8b5cf6";
+  if (type.includes("automation") || type.includes("workflow")) return "#f59e0b";
+  if (type.includes("invitation") || type.includes("invite")) return "#3b82f6";
+  return colors.primary;
+}
+
+function NotificationRow({
+  notification,
+  workspaceId,
+  onRefresh,
+  colors,
+}: {
+  notification: BaserowNotification;
+  workspaceId: number;
+  onRefresh: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const { apiCall } = useAuth();
+  const creds = useCreds();
+  const queryClient = useQueryClient();
+
+  const markMutation = useMutation({
+    mutationFn: (isRead: boolean) =>
+      markNotificationRead({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId, notification.id, isRead),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
+      onRefresh();
+    },
+  });
+
+  const icon = notificationIcon(notification.notification_type);
+  const iconColor = notificationColor(notification.notification_type, colors);
+
+  return (
+    <View
+      style={[
+        styles.notifRow,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderRadius: colors.radius,
+          borderLeftWidth: 3,
+          borderLeftColor: notification.is_read ? "transparent" : colors.primary,
+        },
+      ]}
+      data-testid={`notif-row-${notification.id}`}
+    >
+      <View style={[styles.notifIconWrap, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+        <Feather name={icon} size={14} color={iconColor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.notifHeader}>
+          <Text
+            style={[
+              styles.notifTitle,
+              { color: notification.is_read ? colors.mutedForeground : colors.text },
+              !notification.is_read && styles.notifTitleUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {notification.title || notification.notification_type.replace(/_/g, " ")}
+          </Text>
+          <Text style={[styles.notifTime, { color: colors.mutedForeground }]}>
+            {timeAgo(notification.created_on)}
+          </Text>
+        </View>
+        {notification.message ? (
+          <Text style={[styles.notifMessage, { color: colors.mutedForeground }]} numberOfLines={2}>
+            {notification.message}
+          </Text>
+        ) : null}
+        {notification.sender_name && (
+          <Text style={[styles.notifSender, { color: colors.mutedForeground }]}>
+            by {notification.sender_name}
+          </Text>
+        )}
+      </View>
+      <Pressable
+        style={[styles.notifAction, { backgroundColor: colors.muted }]}
+        onPress={() => markMutation.mutate(!notification.is_read)}
+        disabled={markMutation.isPending}
+        hitSlop={8}
+        data-testid={`notif-toggle-${notification.id}`}
+      >
+        <Feather
+          name={notification.is_read ? "bell-off" : "bell"}
+          size={14}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Notifications tab ───────────────────────────────────────────────────────
+
+function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useColors>; insets: { top: number; bottom: number } }) {
+  const { apiCall } = useAuth();
+  const creds = useCreds();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 30;
+  const [selectedWsId, setSelectedWsId] = useState<number | null>(null);
+  const [wsPickerOpen, setWsPickerOpen] = useState(false);
+
+  // Fetch workspaces for the workspace selector
+  const wsQuery = useQuery({
+    queryKey: ["workspaces", creds.baseUrl, creds.user.id],
+    queryFn: () => apiCall((c) => listWorkspaces(c)),
+  });
+
+  const workspaceId = selectedWsId ?? wsQuery.data?.[0]?.id ?? 0;
+
+  const notifQuery = useQuery({
+    queryKey: ["notifications", workspaceId, page],
+    queryFn: () => listNotifications({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    enabled: workspaceId > 0,
+  });
+
+  const markAllMutation = useMutation({
+    mutationFn: () => markAllNotificationsRead({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
+      setPage(0);
+    },
+  });
+
+  const notifications = notifQuery.data?.results ?? [];
+  const total = notifQuery.data?.count ?? 0;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const hasMore = notifications.length < total;
+
+  const selectedWs = wsQuery.data?.find((ws) => ws.id === workspaceId);
+
+  return (
+    <>
+      {/* Workspace selector + actions bar */}
+      <View style={[styles.notifBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <Pressable
+          style={[styles.wsPicker, { backgroundColor: colors.muted, borderColor: colors.border }]}
+          onPress={() => setWsPickerOpen(!wsPickerOpen)}
+          data-testid="ws-picker-btn"
+        >
+          <Feather name="grid" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.wsPickerText, { color: colors.text }]} numberOfLines={1}>
+            {selectedWs?.name ?? "Select workspace"}
+          </Text>
+          <Feather name={wsPickerOpen ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
+        </Pressable>
+
+        {wsPickerOpen && (
+          <View style={[styles.wsDropdown, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+            {wsQuery.data?.map((ws) => (
+              <Pressable
+                key={ws.id}
+                style={[styles.wsDropdownItem, { borderBottomColor: colors.border }]}
+                onPress={() => { setSelectedWsId(ws.id); setWsPickerOpen(false); setPage(0); }}
+                data-testid={`ws-option-${ws.id}`}
+              >
+                <Text style={[styles.wsDropdownText, { color: ws.id === workspaceId ? colors.primary : colors.text }]}>
+                  {ws.name}
+                </Text>
+                {ws.id === workspaceId && <Feather name="check" size={14} color={colors.primary} />}
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.notifActions}>
+          <Pressable
+            style={[styles.actionBtn, { backgroundColor: colors.muted }]}
+            onPress={() => { setPage(0); notifQuery.refetch(); }}
+            hitSlop={8}
+            data-testid="refresh-notifs"
+          >
+            <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+          </Pressable>
+          {unreadCount > 0 && (
+            <Pressable
+              style={[styles.markAllBtn, { backgroundColor: colors.primary }]}
+              onPress={() => markAllMutation.mutate()}
+              disabled={markAllMutation.isPending}
+              data-testid="mark-all-read"
+            >
+              <Feather name="bell-off" size={12} color="#fff" />
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Notification list */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={notifQuery.isFetching && !notifQuery.isLoading}
+            onRefresh={() => notifQuery.refetch()}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {notifQuery.isLoading ? (
+          <LoadingState />
+        ) : notifQuery.isError ? (
+          <ErrorState
+            message={notifQuery.error instanceof Error ? notifQuery.error.message : "Failed to load"}
+            onRetry={() => notifQuery.refetch()}
+          />
+        ) : notifications.length === 0 ? (
+          <EmptyState
+            icon="bell"
+            title="No Notifications"
+            description="You're all caught up! New notifications will appear here."
+          />
+        ) : (
+          <View style={styles.notifList}>
+            {unreadCount > 0 && (
+              <Text style={[styles.unreadLabel, { color: colors.primary }]}>
+                {unreadCount} unread
+              </Text>
+            )}
+            {notifications.map((n) => (
+              <NotificationRow
+                key={n.id}
+                notification={n}
+                workspaceId={workspaceId}
+                onRefresh={() => notifQuery.refetch()}
+                colors={colors}
+              />
+            ))}
+            {hasMore && (
+              <Pressable
+                style={[styles.loadMore, { backgroundColor: colors.muted, borderColor: colors.border, borderRadius: colors.radius }]}
+                onPress={() => setPage((p) => p + 1)}
+                data-testid="load-more-notifs"
+              >
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>
+                  Load more ({total - notifications.length} remaining)
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </>
+  );
+}
+
+// ─── Push Settings tab (existing UI) ─────────────────────────────────────────
+
+function PushSettingsTab({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { hasPermission, expoPushToken, settings, updateSettings } = usePushNotifications();
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      {/* Permission Status */}
+      <View style={[styles.section, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>PERMISSION STATUS</Text>
+        <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>Push Notifications</Text>
+            <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
+              {hasPermission ? "Enabled" : "Tap to enable in your device settings"}
+            </Text>
+          </View>
+          <View style={[styles.badge, { backgroundColor: hasPermission ? "#22c55e" : "#ef4444" }]}>
+            <Text style={styles.badgeText}>{hasPermission ? "ON" : "OFF"}</Text>
+          </View>
+        </View>
+        {expoPushToken && (
+          <View style={[styles.tokenContainer, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.tokenLabel, { color: colors.mutedForeground }]}>Device Token</Text>
+            <Text style={[styles.tokenValue, { color: colors.foreground }]} numberOfLines={2}>
+              {expoPushToken.substring(0, 40)}...
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Notification Types */}
+      <View style={[styles.section, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>NOTIFICATION TYPES</Text>
+        <PushToggle title="Table Updates" subtitle="Get notified when rows are added or modified" value={settings.tableUpdates} onValueChange={(v) => updateSettings({ tableUpdates: v })} colors={colors} />
+        <PushToggle title="Mentions" subtitle="Get alerted when someone mentions you" value={settings.mentionAlerts} onValueChange={(v) => updateSettings({ mentionAlerts: v })} colors={colors} />
+        <PushToggle title="Weekly Digest" subtitle="Summary of your Baserow activity" value={settings.weeklyDigest} onValueChange={(v) => updateSettings({ weeklyDigest: v })} colors={colors} />
+      </View>
+
+      <View style={styles.infoSection}>
+        <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
+          To receive notifications, make sure push notifications are enabled for this app in your device settings.
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+function PushToggle({ title, subtitle, value, onValueChange, colors }: {
+  title: string; subtitle: string; value: boolean;
+  onValueChange: (v: boolean) => void; colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+      </View>
+      <Switch value={value} onValueChange={onValueChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor="#fff" />
+    </View>
+  );
+}
+
+// ─── Main screen ────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const {
-    hasPermission,
-    expoPushToken,
-    settings,
-    updateSettings,
-  } = usePushNotifications();
+  const [activeTab, setActiveTab] = useState<NotificationTab>("notifications");
 
   return (
     <>
       <Stack.Screen
-        options={{
-          title: "Notifications",
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.foreground,
-        }}
+        options={{ title: "Notifications", headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.foreground }}
       />
-
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: colors.background, paddingBottom: insets.bottom },
-        ]}
-      >
-        {/* Permission Status */}
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-            PERMISSION STATUS
-          </Text>
-
-          <View
-            style={[
-              styles.row,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              },
-            ]}
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        {/* Tab switcher */}
+        <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <Pressable
+            style={[styles.tab, activeTab === "notifications" && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setActiveTab("notifications")}
+            data-testid="tab-notifications"
           >
-            <View style={styles.rowContent}>
-              <Text style={[styles.rowTitle, { color: colors.foreground }]}>
-                Push Notifications
-              </Text>
-              <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
-                {hasPermission
-                  ? "Enabled"
-                  : "Tap to enable in your device settings"}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor: hasPermission ? "#22c55e" : "#ef4444",
-                },
-              ]}
-            >
-              <Text style={styles.badgeText}>
-                {hasPermission ? "ON" : "OFF"}
-              </Text>
-            </View>
-          </View>
-
-          {expoPushToken && (
-            <View
-              style={[
-                styles.tokenContainer,
-                { backgroundColor: colors.muted },
-              ]}
-            >
-              <Text style={[styles.tokenLabel, { color: colors.mutedForeground }]}>
-                Device Token
-              </Text>
-              <Text
-                style={[styles.tokenValue, { color: colors.foreground }]}
-                numberOfLines={2}
-              >
-                {expoPushToken.substring(0, 40)}...
-              </Text>
-            </View>
-          )}
+            <Feather name="bell" size={15} color={activeTab === "notifications" ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.tabText, { color: activeTab === "notifications" ? colors.primary : colors.mutedForeground }]}>Notifications</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === "settings" && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setActiveTab("settings")}
+            data-testid="tab-settings"
+          >
+            <Feather name="settings" size={15} color={activeTab === "settings" ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.tabText, { color: activeTab === "settings" ? colors.primary : colors.mutedForeground }]}>Push Settings</Text>
+          </Pressable>
         </View>
 
-        {/* Notification Types */}
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-            NOTIFICATION TYPES
-          </Text>
-
-          <NotificationToggle
-            title="Table Updates"
-            subtitle="Get notified when rows are added or modified"
-            value={settings.tableUpdates}
-            onValueChange={(value) => updateSettings({ tableUpdates: value })}
-            colors={colors}
-          />
-
-          <NotificationToggle
-            title="Mentions"
-            subtitle="Get alerted when someone mentions you"
-            value={settings.mentionAlerts}
-            onValueChange={(value) => updateSettings({ mentionAlerts: value })}
-            colors={colors}
-          />
-
-          <NotificationToggle
-            title="Weekly Digest"
-            subtitle="Summary of your Baserow activity"
-            value={settings.weeklyDigest}
-            onValueChange={(value) => updateSettings({ weeklyDigest: value })}
-            colors={colors}
-          />
-        </View>
-
-        {/* Info */}
-        <View style={styles.infoSection}>
-          <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
-            To receive notifications, make sure push notifications are enabled
-            for this app in your device settings.
-          </Text>
-        </View>
+        {activeTab === "notifications" ? (
+          <NotificationsTab colors={colors} insets={insets} />
+        ) : (
+          <PushSettingsTab colors={colors} />
+        )}
       </View>
     </>
   );
 }
 
-function NotificationToggle({
-  title,
-  subtitle,
-  value,
-  onValueChange,
-  colors,
-}: {
-  title: string;
-  subtitle: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-  colors: any;
-}) {
-  return (
-    <View
-      style={[
-        styles.toggleRow,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      <View style={styles.rowContent}>
-        <Text style={[styles.rowTitle, { color: colors.foreground }]}>
-          {title}
-        </Text>
-        <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>
-          {subtitle}
-        </Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: colors.muted, true: colors.primary }}
-        thumbColor="#fff"
-      />
-    </View>
-  );
-}
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    paddingBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 10,
-    letterSpacing: 0.5,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  rowContent: {
-    flex: 1,
-  },
-  rowTitle: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  rowSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  tokenContainer: {
-    marginTop: 10,
-    padding: 12,
-    borderRadius: 8,
-  },
-  tokenLabel: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  tokenValue: {
-    fontSize: 11,
-    fontFamily: "monospace",
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  infoSection: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
-  infoText: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
+  container: { flex: 1 },
+  tabBar: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 16 },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, gap: 6 },
+  tabText: { fontSize: 14, fontWeight: "600" },
+  notifBar: { flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, gap: 8, zIndex: 10 },
+  wsPicker: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, gap: 4, flex: 1 },
+  wsPickerText: { fontSize: 13, fontWeight: "500", flex: 1 },
+  wsDropdown: { position: "absolute", top: 52, left: 12, right: 12, borderWidth: 1, zIndex: 100, elevation: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8 },
+  wsDropdownItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottomWidth: 0.5 },
+  wsDropdownText: { fontSize: 14, fontWeight: "500" },
+  notifActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionBtn: { padding: 6, borderRadius: 6 },
+  markAllBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
+  markAllText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  notifList: { gap: 8 },
+  unreadLabel: { fontSize: 12, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+  notifRow: { flexDirection: "row", alignItems: "flex-start", padding: 12, borderWidth: 1, gap: 10 },
+  notifIconWrap: { width: 30, height: 30, borderRadius: 6, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  notifHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 2 },
+  notifTitle: { fontSize: 14, fontWeight: "500", flex: 1 },
+  notifTitleUnread: { fontWeight: "700" },
+  notifTime: { fontSize: 11 },
+  notifMessage: { fontSize: 13, lineHeight: 18 },
+  notifSender: { fontSize: 11, marginTop: 2 },
+  notifAction: { padding: 6, borderRadius: 6 },
+  loadMore: { alignItems: "center", padding: 12, marginTop: 8, borderWidth: 1 },
+  loadMoreText: { fontSize: 13, fontWeight: "600" },
+  section: { marginTop: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  sectionTitle: { fontSize: 12, fontWeight: "600", marginBottom: 10, letterSpacing: 0.5 },
+  row: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 10, borderWidth: 1 },
+  rowTitle: { fontSize: 15, fontWeight: "500" },
+  rowSubtitle: { fontSize: 12, marginTop: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  badgeText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  tokenContainer: { marginTop: 10, padding: 12, borderRadius: 8 },
+  tokenLabel: { fontSize: 11, fontWeight: "500", marginBottom: 4 },
+  tokenValue: { fontSize: 11, fontFamily: "monospace" },
+  toggleRow: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 10, borderWidth: 1, marginBottom: 8 },
+  infoSection: { marginTop: 20, paddingHorizontal: 4 },
+  infoText: { fontSize: 13, textAlign: "center", lineHeight: 18 },
 });
