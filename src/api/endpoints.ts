@@ -131,6 +131,8 @@ export const Endpoints = {
       `${API_BASE}/notifications/${workspaceId}/${notificationId}/`,
     markAllRead: (workspaceId: number) =>
       `${API_BASE}/notifications/${workspaceId}/mark-all-as-read/`,
+    delete: (workspaceId: number, notificationId: number) =>
+      `${API_BASE}/notifications/${workspaceId}/${notificationId}/`,
   },
   // Trash API
   trash: {
@@ -140,5 +142,28 @@ export const Endpoints = {
       `${API_BASE}/trash/workspace/${workspaceId}/`,
     emptyWorkspace: (workspaceId: number) =>
       `${API_BASE}/trash/workspace/${workspaceId}/`,
+  },
+  // User Profile API
+  user: {
+    account: () => `${API_BASE}/user/account/`,
+    changeEmail: () => `${API_BASE}/user/change-email/`,
+    changePassword: () => `${API_BASE}/user/change-password/`,
+    dashboard: () => `${API_BASE}/user/dashboard/`,
+    resetPassword: () => `${API_BASE}/user/reset-password/`,
+    scheduleAccountDeletion: () => `${API_BASE}/user/schedule-account-deletion/`,
+    sendChangeEmailConfirmation: () => `${API_BASE}/user/send-change-email-confirmation/`,
+    sendResetPasswordEmail: () => `${API_BASE}/user/send-reset-password-email/`,
+    sendVerifyEmail: () => `${API_BASE}/user/send-verify-email/`,
+    verifyEmail: () => `${API_BASE}/user/verify-email/`,
+    undo: () => `${API_BASE}/user/undo/`,
+    redo: () => `${API_BASE}/user/redo/`,
+  },
+  // Row Comments API
+  comments: {
+    list: (tableId: number, rowId: number) => `/api/row_comments/${tableId}/${rowId}/`,
+    create: (tableId: number, rowId: number) => `/api/row_comments/${tableId}/${rowId}/`,
+    update: (tableId: number, commentId: number) => `/api/row_comments/${tableId}/comment/${commentId}/`,
+    delete: (tableId: number, commentId: number) => `/api/row_comments/${tableId}/comment/${commentId}/`,
+    notificationMode: (tableId: number, rowId: number) => `/api/row_comments/${tableId}/${rowId}/notification-mode/`,
   },
 };

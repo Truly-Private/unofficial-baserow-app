@@ -213,3 +213,63 @@ type FieldType =
   | "datetime"
   | "single_select"
   | "multiple_select";
+
+// User Profile API helpers
+export async function fetchUserAccount(client: ApiClient) {
+  return client.get(Endpoints.user.account());
+}
+
+export async function updateUserAccount(
+  client: ApiClient,
+  payload: { first_name?: string; last_name?: string },
+) {
+  return client.patch(Endpoints.user.account(), payload);
+}
+
+export async function changeUserEmail(
+  client: ApiClient,
+  payload: { new_email: string },
+) {
+  return client.post(Endpoints.user.changeEmail(), payload);
+}
+
+export async function changeUserPassword(
+  client: ApiClient,
+  payload: { current_password: string; new_password: string },
+) {
+  return client.post(Endpoints.user.changePassword(), payload);
+}
+
+// Row Comments API helpers
+export async function fetchRowComments(client: ApiClient, tableId: number, rowId: number) {
+  return client.get(Endpoints.comments.list(tableId, rowId));
+}
+
+export async function createRowComment(client: ApiClient, tableId: number, rowId: number, message: string) {
+  return client.post(Endpoints.comments.create(tableId, rowId), { message });
+}
+
+export async function updateRowComment(client: ApiClient, tableId: number, commentId: number, message: string) {
+  return client.patch(Endpoints.comments.update(tableId, commentId), { message });
+}
+
+export async function deleteRowComment(client: ApiClient, tableId: number, commentId: number) {
+  return client.delete(Endpoints.comments.delete(tableId, commentId));
+}
+
+// Notifications API helpers
+export async function fetchNotifications(client: ApiClient, workspaceId: number) {
+  return client.get(Endpoints.notifications.list(workspaceId));
+}
+
+export async function markNotificationRead(client: ApiClient, workspaceId: number, notificationId: number) {
+  return client.patch(Endpoints.notifications.markRead(workspaceId, notificationId), {});
+}
+
+export async function markAllNotificationsRead(client: ApiClient, workspaceId: number) {
+  return client.post(Endpoints.notifications.markAllRead(workspaceId));
+}
+
+export async function deleteNotification(client: ApiClient, workspaceId: number, notificationId: number) {
+  return client.delete(Endpoints.notifications.delete(workspaceId, notificationId));
+}
