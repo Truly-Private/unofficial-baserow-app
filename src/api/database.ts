@@ -199,6 +199,117 @@ export async function deleteSelectOption(
   });
 }
 
+// Row Comments helpers
+export interface RowComment {
+  id: number;
+  user_id: number | null;
+  first_name: string;
+  table_id: number;
+  row_id: number;
+  message: string;
+  created_on: string;
+  updated_on: string;
+  edited: string;
+  trashed?: boolean;
+}
+
+export async function fetchRowComments(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+) {
+  return client.get(Endpoints.rowComments.list(tableId, rowId));
+}
+
+export async function createRowComment(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+  message: string,
+) {
+  return client.post(Endpoints.rowComments.create(tableId, rowId), { message });
+}
+
+export async function updateRowComment(
+  client: ApiClient,
+  tableId: number,
+  commentId: number,
+  message: string,
+) {
+  return client.patch(Endpoints.rowComments.update(tableId, commentId), { message });
+}
+
+export async function deleteRowComment(
+  client: ApiClient,
+  tableId: number,
+  commentId: number,
+) {
+  return client.delete(Endpoints.rowComments.delete(tableId, commentId));
+}
+
+export async function setRowCommentNotificationMode(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+  mode: "all" | "mentions",
+) {
+  return client.put(
+    Endpoints.rowComments.notificationMode(tableId, rowId),
+    { mode },
+  );
+}
+
+// Notifications helpers
+export interface NotificationRecipient {
+  id: number;
+  type: string;
+  sender: { id: number; username: string; first_name?: string };
+  workspace: string;
+  created_on: string;
+  read: boolean;
+  data: any;
+}
+
+export interface NotificationListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: NotificationRecipient[];
+}
+
+export async function fetchNotifications(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.get(Endpoints.notifications.list(workspaceId));
+}
+
+export async function markNotificationRead(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.patch(
+    Endpoints.notifications.markRead(workspaceId, notificationId),
+    { read: true },
+  );
+}
+
+export async function markAllNotificationsRead(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.post(Endpoints.notifications.markAllRead(workspaceId));
+}
+
+export async function deleteNotification(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.delete(Endpoints.notifications.markRead(workspaceId, notificationId));
+}
+
 // Field type union for TypeScript
 type FieldType =
   | "text"
