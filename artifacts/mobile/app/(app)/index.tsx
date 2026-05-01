@@ -681,6 +681,41 @@ export default function WorkspacesScreen() {
                 </Pressable>
               </View>
 
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/ai-chat/[workspaceId]",
+                    params: { workspaceId: String(group.id) },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.kumaCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                    opacity: pressed ? 0.72 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.kumaIcon,
+                    {
+                      backgroundColor: colors.primary,
+                      borderRadius: colors.radius,
+                    },
+                  ]}
+                >
+                  <Feather name="message-circle" size={18} color={colors.primaryForeground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.kumaTitle, { color: colors.foreground }]}>Ask Kuma AI</Text>
+                  <Text style={[styles.kumaSubtitle, { color: colors.mutedForeground }]}>Chat with Baserow's AI assistant for {group.name}</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              </Pressable>
+
               {group.applications.length === 0 ? (
                 <View
                   style={[
@@ -1773,6 +1808,31 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     overflow: "hidden",
+  },
+  kumaCard: {
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  kumaIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kumaTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 16,
+  },
+  kumaSubtitle: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 18,
   },
   dbRow: {
     flexDirection: "row",

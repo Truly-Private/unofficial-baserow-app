@@ -2315,7 +2315,21 @@ export async function listAssistantMessages(
     const data = await res.json().catch(() => ({}));
     throw new BaserowApiError(res.status, data, data?.detail || "Failed to list messages");
   }
-  return res.json();
+  const response = await res.json();
+  if (Array.isArray(response)) {
+    return {
+      count: response.length,
+      next: null,
+      previous: null,
+      results: response,
+    };
+  }
+  return {
+    count: typeof response?.count === "number" ? response.count : (response?.results?.length ?? 0),
+    next: response?.next ?? null,
+    previous: response?.previous ?? null,
+    results: Array.isArray(response?.results) ? response.results : [],
+  };
 }
 
 /**

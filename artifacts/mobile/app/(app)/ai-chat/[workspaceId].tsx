@@ -137,7 +137,7 @@ export default function AIChatScreen() {
       if (existingChat) {
         setChat(existingChat);
         const msgs = await listAssistantMessages(credentials, existingChat.uuid);
-        setMessages(msgs.results.reverse());
+        setMessages([...msgs.results].reverse());
       } else {
         // No chat exists yet - will be created on first message
         setChat(null);
@@ -176,6 +176,10 @@ export default function AIChatScreen() {
         credentials,
         chat.uuid,
         userMessage,
+        {
+          workspace: { id: Number(workspaceId), name: "Workspace" },
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        },
       );
 
       const assistantMessage: AssistantMessage = {

@@ -23,6 +23,33 @@ test.describe("AI Assistant API", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await seedAuth(page);
 
+    await page.route("https://mock-baserow.test/api/workspaces/", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          { id: 42, name: "E2E Workspace", order: 1 },
+        ]),
+      });
+    });
+
+    await page.route("https://mock-baserow.test/api/applications/", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: 77,
+            name: "E2E Database",
+            type: "database",
+            order: 1,
+            workspace: { id: 42, name: "E2E Workspace", order: 1 },
+            tables: [],
+          },
+        ]),
+      });
+    });
+
     await page.route("https://mock-baserow.test/assistant/chat/?**", async (route) => {
       await route.fulfill({
         status: 200,
@@ -85,6 +112,18 @@ test.describe("AI Assistant API", () => {
     });
   });
 
+  test("opens Kuma AI from the workspace dashboard", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByText("E2E Workspace", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ask Kuma AI")).toBeVisible();
+    await page.getByText("Ask Kuma AI").click();
+
+    await expect(page).toHaveURL(/\/ai-chat\/42/);
+    await expect(page.getByText("Summarize my workspace")).toBeVisible();
+    await expect(page.getByPlaceholder("Ask me anything...")).toBeVisible();
+  });
+
   test("loads an existing assistant chat and message history", async ({ page }) => {
     await page.goto("/(app)/ai-chat/42");
 
@@ -112,7 +151,10 @@ test.describe("AI Assistant API", () => {
     await expect(page.getByText("Create a status report")).toBeVisible();
     await expect(page.getByText("Message sent")).toBeVisible();
     await expect.poll(() => sentRequests.length).toBe(1);
-    expect(sentRequests[0]).toMatchObject({ content: "Create a status report" });
+    expect(sentRequests[0]).toMatchObject({
+      content: "Create a status report",
+      ui_context: { workspace: { id: 42 } },
+    });
   });
 
   test("shows the premium requirement error from the assistant API", async ({ page }) => {
