@@ -199,6 +199,211 @@ export async function deleteSelectOption(
   });
 }
 
+// Row Comments helpers
+export interface RowComment {
+  id: number;
+  user_id: number | null;
+  first_name: string;
+  table_id: number;
+  row_id: number;
+  message: string;
+  created_on: string;
+  updated_on: string;
+  edited: string;
+  trashed?: boolean;
+}
+
+export async function fetchRowComments(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+) {
+  return client.get(Endpoints.rowComments.list(tableId, rowId));
+}
+
+export async function createRowComment(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+  message: string,
+) {
+  return client.post(Endpoints.rowComments.create(tableId, rowId), { message });
+}
+
+export async function updateRowComment(
+  client: ApiClient,
+  tableId: number,
+  commentId: number,
+  message: string,
+) {
+  return client.patch(Endpoints.rowComments.update(tableId, commentId), { message });
+}
+
+export async function deleteRowComment(
+  client: ApiClient,
+  tableId: number,
+  commentId: number,
+) {
+  return client.delete(Endpoints.rowComments.delete(tableId, commentId));
+}
+
+export async function setRowCommentNotificationMode(
+  client: ApiClient,
+  tableId: number,
+  rowId: number,
+  mode: "all" | "mentions",
+) {
+  return client.put(
+    Endpoints.rowComments.notificationMode(tableId, rowId),
+    { mode },
+  );
+}
+
+// Notifications helpers
+export interface NotificationRecipient {
+  id: number;
+  type: string;
+  sender: { id: number; username: string; first_name?: string };
+  workspace: string;
+  created_on: string;
+  read: boolean;
+  data: any;
+}
+
+export interface NotificationListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: NotificationRecipient[];
+}
+
+export async function fetchNotifications(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.get(Endpoints.notifications.list(workspaceId));
+}
+
+export async function markNotificationRead(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.patch(
+    Endpoints.notifications.markRead(workspaceId, notificationId),
+    { read: true },
+  );
+}
+
+export async function markAllNotificationsRead(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.post(Endpoints.notifications.markAllRead(workspaceId));
+}
+
+export async function deleteNotification(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.delete(Endpoints.notifications.markRead(workspaceId, notificationId));
+}
+
+// User Profile helpers
+export interface UserAccount {
+  first_name: string;
+  language: string;
+  email_notification_frequency: "instant" | "daily" | "weekly" | "never";
+  completed_onboarding: boolean;
+  completed_guided_tours: string[];
+}
+
+export interface UserDashboard {
+  workspace_invitations: WorkspaceInvitation[];
+}
+
+export interface WorkspaceInvitation {
+  id: number;
+  invited_by: string;
+  workspace: string;
+  email: string;
+  created_on: string;
+  accepted_on?: string;
+}
+
+export interface ChangeEmailPayload {
+  new_email: string;
+  password: string;
+  base_url: string;
+}
+
+export interface ChangePasswordPayload {
+  new_password: string;
+  new_password_confirm: string;
+  old_password: string;
+}
+
+// GET /api/user/me/ — current user profile
+export async function fetchMe(apiCall: (req: any) => Promise<any>): Promise<any> {
+  return apiCall((c: any) => c.get("/api/user/me/"));
+}
+
+// GET /api/user/account/ — editable account settings
+export async function fetchAccount(apiCall: (req: any) => Promise<any>): Promise<UserAccount> {
+  return apiCall((c: any) => c.get("/api/user/account/"));
+}
+
+// PATCH /api/user/account/ — update first name, language, notifications
+export async function updateAccount(
+  apiCall: (req: any) => Promise<any>,
+  payload: Partial<UserAccount>,
+): Promise<UserAccount> {
+  return apiCall((c: any) => c.patch("/api/user/account/", payload));
+}
+
+// POST /api/user/change-password/
+export async function changePassword(
+  apiCall: (req: any) => Promise<any>,
+  payload: ChangePasswordPayload,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/change-password/", payload));
+}
+
+// POST /api/user/send-change-email-confirmation/
+export async function sendChangeEmailConfirmation(
+  apiCall: (req: any) => Promise<any>,
+  payload: ChangeEmailPayload,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/send-change-email-confirmation/", payload));
+}
+
+// POST /api/user/change-email/ (confirm with token)
+export async function changeEmail(
+  apiCall: (req: any) => Promise<any>,
+  token: string,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/change-email/", { token }));
+}
+
+// POST /api/user/send-verify-email/
+export async function sendVerifyEmail(apiCall: (req: any) => Promise<any>): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/send-verify-email/"));
+}
+
+// GET /api/user/dashboard/ — workspace invitations
+export async function fetchDashboard(apiCall: (req: any) => Promise<any>): Promise<UserDashboard> {
+  return apiCall((c: any) => c.get("/api/user/dashboard/"));
+}
+
+// POST /api/user/schedule-account-deletion/
+export async function scheduleAccountDeletion(
+  apiCall: (req: any) => Promise<any>,
+  payload: { days: number },
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/schedule-account-deletion/", payload));
+}
+
 // Field type union for TypeScript
 type FieldType =
   | "text"
