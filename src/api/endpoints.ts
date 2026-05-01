@@ -132,6 +132,19 @@ export const Endpoints = {
     markAllRead: (workspaceId: number) =>
       `${API_BASE}/notifications/${workspaceId}/mark-all-as-read/`,
   },
+  // Row Comments API
+  rowComments: {
+    list: (tableId: number, rowId: number) =>
+      `${API_BASE}/row_comments/${tableId}/${rowId}/`,
+    create: (tableId: number, rowId: number) =>
+      `${API_BASE}/row_comments/${tableId}/${rowId}/`,
+    update: (tableId: number, commentId: number) =>
+      `${API_BASE}/row_comments/${tableId}/comment/${commentId}/`,
+    delete: (tableId: number, commentId: number) =>
+      `${API_BASE}/row_comments/${tableId}/comment/${commentId}/`,
+    notificationMode: (tableId: number, rowId: number) =>
+      `${API_BASE}/row_comments/${tableId}/${rowId}/notification-mode/`,
+  },
   // Trash API
   trash: {
     globalStructure: () => `${API_BASE}/trash/`,
