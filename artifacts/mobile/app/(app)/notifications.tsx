@@ -1,3 +1,4 @@
+import * as React from "react";
 /**
  * NotificationsScreen — full Baserow notifications management.
  * Two tabs:
@@ -28,7 +29,7 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
-  listApplications,
+  clearWorkspaceNotifications,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -82,16 +83,22 @@ function NotificationRow({
   const queryClient = useQueryClient();
 
   const markMutation = useMutation({
-    mutationFn: (isRead: boolean) =>
-      markNotificationRead(creds, workspaceId, notification.id, isRead),
+    mutationFn: () => markNotificationRead(creds, workspaceId, notification.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
       onRefresh();
     },
   });
 
-  const icon = notificationIcon(notification.notification_type);
-  const iconColor = notificationColor(notification.notification_type, colors);
+  const typeLabel = notification.type ?? "notification";
+  const notificationData = notification.data ?? {};
+  const title = typeof notificationData["title"] == "string" ? notificationData["title"] : null;
+  const message = typeof notificationData["message"] == "string" ? notificationData["message"] : null;
+  const senderName = notification.sender?.first_name ?? notification.sender?.username ?? null;
+  const isRead = Boolean(notification.read);
+
+  const icon = notificationIcon(typeLabel);
+  const iconColor = notificationColor(typeLabel, colors);
 
   return (
     <View
@@ -102,7 +109,7 @@ function NotificationRow({
           borderColor: colors.border,
           borderRadius: colors.radius,
           borderLeftWidth: 3,
-          borderLeftColor: notification.is_read ? "transparent" : colors.primary,
+          borderLeftColor: isRead ? "transparent" : colors.primary,
         },
       ]}
       data-testid={`notif-row-${notification.id}`}
@@ -115,52 +122,52 @@ function NotificationRow({
           <Text
             style={[
               styles.notifTitle,
-              { color: notification.is_read ? colors.mutedForeground : colors.text },
-              !notification.is_read && styles.notifTitleUnread,
+              { color: isRead ? colors.mutedForeground : colors.text },
+              !isRead && styles.notifTitleUnread,
             ]}
             numberOfLines={1}
           >
-            {notification.title || notification.notification_type.replace(/_/g, " ")}
+            {title || typeLabel.replace(/_/g, " ")}
           </Text>
           <Text style={[styles.notifTime, { color: colors.mutedForeground }]}>
             {timeAgo(notification.created_on)}
           </Text>
         </View>
-        {notification.message ? (
+        {message ? (
           <Text style={[styles.notifMessage, { color: colors.mutedForeground }]} numberOfLines={2}>
-            {notification.message}
+            {message}
           </Text>
         ) : null}
-        {notification.sender_name && (
+        {senderName && (
           <Text style={[styles.notifSender, { color: colors.mutedForeground }]}>
-            by {notification.sender_name}
+            by {senderName}
           </Text>
         )}
       </View>
-      <Pressable
-        style={[styles.notifAction, { backgroundColor: colors.muted }]}
-        onPress={() => markMutation.mutate(!notification.is_read)}
-        disabled={markMutation.isPending}
-        hitSlop={8}
-        data-testid={`notif-toggle-${notification.id}`}
-      >
-        <Feather
-          name={notification.is_read ? "bell-off" : "bell"}
-          size={14}
-          color={colors.mutedForeground}
-        />
-      </Pressable>
+      {!isRead ? (
+        <Pressable
+          style={[styles.notifAction, { backgroundColor: colors.muted }]}
+          onPress={() => markMutation.mutate()}
+          disabled={markMutation.isPending}
+          hitSlop={8}
+          data-testid={`notif-mark-read-${notification.id}`}
+          accessibilityLabel={`Mark notification ${notification.id} as read`}
+        >
+          <Feather name="bell" size={14} color={colors.mutedForeground} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 // ─── Notifications tab ───────────────────────────────────────────────────────
 
-function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useColors>; insets: { top: number; bottom: number } }) {
+function NotificationsTab({ colors }: { colors: ReturnType<typeof useColors> }) {
   const { apiCall } = useAuth();
   const creds = useCreds();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [loadedNotifications, setLoadedNotifications] = useState<BaserowNotification[]>([]);
   const PAGE_SIZE = 30;
   const [selectedWsId, setSelectedWsId] = useState<number | null>(null);
   const [wsPickerOpen, setWsPickerOpen] = useState(false);
@@ -184,15 +191,42 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
       setPage(0);
+      setLoadedNotifications([]);
     },
   });
 
-  const notifications = notifQuery.data?.results ?? [];
+  const clearMutation = useMutation({
+    mutationFn: () => clearWorkspaceNotifications(creds, workspaceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
+      setPage(0);
+      setLoadedNotifications([]);
+    },
+  });
+
+  const pageResults = notifQuery.data?.results ?? [];
   const total = notifQuery.data?.count ?? 0;
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const notifications = loadedNotifications.length > 0 || page > 0 ? loadedNotifications : pageResults;
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const hasMore = notifications.length < total;
 
   const selectedWs = wsQuery.data?.find((ws) => ws.id === workspaceId);
+
+  React.useEffect(() => {
+    if (!notifQuery.data) return;
+    if (page === 0) {
+      setLoadedNotifications(pageResults);
+      return;
+    }
+    setLoadedNotifications((current) => {
+      const seen = new Set(current.map((n) => n.id));
+      const merged = [...current];
+      for (const item of pageResults) {
+        if (!seen.has(item.id)) merged.push(item);
+      }
+      return merged;
+    });
+  }, [notifQuery.data, page, pageResults]);
 
   return (
     <>
@@ -216,7 +250,7 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
               <Pressable
                 key={ws.id}
                 style={[styles.wsDropdownItem, { borderBottomColor: colors.border }]}
-                onPress={() => { setSelectedWsId(ws.id); setWsPickerOpen(false); setPage(0); }}
+                onPress={() => { setSelectedWsId(ws.id); setWsPickerOpen(false); setPage(0); setLoadedNotifications([]); }}
                 data-testid={`ws-option-${ws.id}`}
               >
                 <Text style={[styles.wsDropdownText, { color: ws.id === workspaceId ? colors.primary : colors.text }]}>
@@ -231,7 +265,7 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
         <View style={styles.notifActions}>
           <Pressable
             style={[styles.actionBtn, { backgroundColor: colors.muted }]}
-            onPress={() => { setPage(0); notifQuery.refetch(); }}
+            onPress={() => { setLoadedNotifications([]); setPage(0); notifQuery.refetch(); }}
             hitSlop={8}
             data-testid="refresh-notifs"
           >
@@ -248,6 +282,17 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
               <Text style={styles.markAllText}>Mark all read</Text>
             </Pressable>
           )}
+          {notifications.length > 0 && (
+            <Pressable
+              style={[styles.clearBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+              onPress={() => clearMutation.mutate()}
+              disabled={clearMutation.isPending}
+              data-testid="clear-notifs"
+            >
+              <Feather name="trash-2" size={12} color={colors.mutedForeground} />
+              <Text style={[styles.clearBtnText, { color: colors.mutedForeground }]}>Clear</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -258,7 +303,7 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
         refreshControl={
           <RefreshControl
             refreshing={notifQuery.isFetching && !notifQuery.isLoading}
-            onRefresh={() => notifQuery.refetch()}
+            onRefresh={() => { setLoadedNotifications([]); setPage(0); notifQuery.refetch(); }}
             tintColor={colors.primary}
           />
         }
@@ -268,7 +313,7 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
         ) : notifQuery.isError ? (
           <ErrorState
             message={notifQuery.error instanceof Error ? notifQuery.error.message : "Failed to load"}
-            onRetry={() => notifQuery.refetch()}
+            onRetry={() => { setLoadedNotifications([]); setPage(0); notifQuery.refetch(); }}
           />
         ) : notifications.length === 0 ? (
           <EmptyState
@@ -288,7 +333,7 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
                 key={n.id}
                 notification={n}
                 workspaceId={workspaceId}
-                onRefresh={() => notifQuery.refetch()}
+                onRefresh={() => { setLoadedNotifications([]); setPage(0); notifQuery.refetch(); }}
                 colors={colors}
               />
             ))}
@@ -296,10 +341,11 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
               <Pressable
                 style={[styles.loadMore, { backgroundColor: colors.muted, borderColor: colors.border, borderRadius: colors.radius }]}
                 onPress={() => setPage((p) => p + 1)}
+                disabled={notifQuery.isFetching}
                 data-testid="load-more-notifs"
               >
                 <Text style={[styles.loadMoreText, { color: colors.primary }]}>
-                  Load more ({total - notifications.length} remaining)
+                  Load more
                 </Text>
               </Pressable>
             )}
@@ -344,9 +390,9 @@ function PushSettingsTab({ colors }: { colors: ReturnType<typeof useColors> }) {
       {/* Notification Types */}
       <View style={[styles.section, { borderBottomColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>NOTIFICATION TYPES</Text>
-        <PushToggle title="Table Updates" subtitle="Get notified when rows are added or modified" value={settings.tableUpdates} onValueChange={(v) => updateSettings({ tableUpdates: v })} colors={colors} />
-        <PushToggle title="Mentions" subtitle="Get alerted when someone mentions you" value={settings.mentionAlerts} onValueChange={(v) => updateSettings({ mentionAlerts: v })} colors={colors} />
-        <PushToggle title="Weekly Digest" subtitle="Summary of your Baserow activity" value={settings.weeklyDigest} onValueChange={(v) => updateSettings({ weeklyDigest: v })} colors={colors} />
+        <PushToggle title="Table Updates" subtitle="Get notified when rows are added or modified" value={settings.tableUpdates} onValueChange={(v) => updateSettings({ tableUpdates: v })} colors={colors} testId="push-toggle-table-updates" />
+        <PushToggle title="Mentions" subtitle="Get alerted when someone mentions you" value={settings.mentionAlerts} onValueChange={(v) => updateSettings({ mentionAlerts: v })} colors={colors} testId="push-toggle-mentions" />
+        <PushToggle title="Weekly Digest" subtitle="Summary of your Baserow activity" value={settings.weeklyDigest} onValueChange={(v) => updateSettings({ weeklyDigest: v })} colors={colors} testId="push-toggle-weekly-digest" />
       </View>
 
       <View style={styles.infoSection}>
@@ -358,9 +404,9 @@ function PushSettingsTab({ colors }: { colors: ReturnType<typeof useColors> }) {
   );
 }
 
-function PushToggle({ title, subtitle, value, onValueChange, colors }: {
+function PushToggle({ title, subtitle, value, onValueChange, colors, testId }: {
   title: string; subtitle: string; value: boolean;
-  onValueChange: (v: boolean) => void; colors: ReturnType<typeof useColors>;
+  onValueChange: (v: boolean) => void; colors: ReturnType<typeof useColors>; testId: string;
 }) {
   return (
     <View style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
@@ -368,7 +414,7 @@ function PushToggle({ title, subtitle, value, onValueChange, colors }: {
         <Text style={[styles.rowTitle, { color: colors.text }]}>{title}</Text>
         <Text style={[styles.rowSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
       </View>
-      <Switch value={value} onValueChange={onValueChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor="#fff" />
+      <Switch testID={testId} value={value} onValueChange={onValueChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor="#fff" />
     </View>
   );
 }
@@ -407,7 +453,7 @@ export default function NotificationsScreen() {
         </View>
 
         {activeTab === "notifications" ? (
-          <NotificationsTab colors={colors} insets={insets} />
+          <NotificationsTab colors={colors} />
         ) : (
           <PushSettingsTab colors={colors} />
         )}
@@ -433,6 +479,8 @@ const styles = StyleSheet.create({
   actionBtn: { padding: 6, borderRadius: 6 },
   markAllBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   markAllText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  clearBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4, borderWidth: 1 },
+  clearBtnText: { fontSize: 12, fontWeight: "600" },
   notifList: { gap: 8 },
   unreadLabel: { fontSize: 12, fontWeight: "700", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
   notifRow: { flexDirection: "row", alignItems: "flex-start", padding: 12, borderWidth: 1, gap: 10 },

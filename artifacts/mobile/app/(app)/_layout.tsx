@@ -40,6 +40,7 @@ export default function AppLayout() {
         options={{ title: "Page" }}
       />
       <Stack.Screen name="admin" options={{ title: "Admin" }} />
+      <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
       <Stack.Screen name="table/[id]" options={{ title: "Table" }} />
       <Stack.Screen
         name="row/[tableId]/[rowId]"

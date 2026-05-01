@@ -220,18 +220,21 @@ export type BaserowComment = {
   last_modified: string;
 };
 
+export type BaserowNotificationSender = {
+  id?: number;
+  first_name?: string;
+  username?: string;
+  [key: string]: unknown;
+};
+
 export type BaserowNotification = {
   id: number;
-  workspace_id: number;
-  notification_type: string;
-  title: string;
-  message: string;
-  is_read: boolean;
-  sender_user_id: number | null;
-  sender_name: string | null;
-  action_url: string | null;
+  type: string;
+  sender?: BaserowNotificationSender | null;
+  workspace?: string | null;
   created_on: string;
-  modified_on: string;
+  read?: boolean;
+  data?: Record<string, unknown> | null;
 };
 
 export type BaserowNotificationsResponse = {
@@ -513,7 +516,6 @@ export async function markNotificationRead(
   creds: BaserowCredentials,
   workspaceId: number,
   notificationId: number,
-  isRead: boolean,
 ): Promise<BaserowNotification> {
   return request<BaserowNotification>(
     creds.baseUrl,
@@ -521,7 +523,6 @@ export async function markNotificationRead(
     {
       method: "PATCH",
       headers: authHeader(creds),
-      body: JSON.stringify({ is_read: isRead }),
     },
   );
 }
