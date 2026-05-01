@@ -141,4 +141,45 @@ export const Endpoints = {
     emptyWorkspace: (workspaceId: number) =>
       `${API_BASE}/trash/workspace/${workspaceId}/`,
   },
+  // Workspaces API
+  workspaces: {
+    list: () => `${API_BASE}/workspaces/`,
+    create: () => `${API_BASE}/workspaces/`,
+    createInitial: () => `${API_BASE}/workspaces/create-initial-workspace/`,
+    order: () => `${API_BASE}/workspaces/order/`,
+    detail: (workspaceId: number) => `${API_BASE}/workspaces/${workspaceId}/`,
+    update: (workspaceId: number) => `${API_BASE}/workspaces/${workspaceId}/`,
+    delete: (workspaceId: number) => `${API_BASE}/workspaces/${workspaceId}/`,
+    leave: (workspaceId: number) => `${API_BASE}/workspaces/${workspaceId}/leave/`,
+    permissions: (workspaceId: number) => `${API_BASE}/workspaces/${workspaceId}/permissions/`,
+    // Workspace applications
+    applications: (workspaceId: number) =>
+      `${API_BASE}/applications/workspace/${workspaceId}/`,
+    // Workspace users
+    users: (workspaceId: number) =>
+      `${API_BASE}/workspaces/users/workspace/${workspaceId}/`,
+    updateUser: (workspaceUserId: number) =>
+      `${API_BASE}/workspaces/users/${workspaceUserId}/`,
+    removeUser: (workspaceUserId: number) =>
+      `${API_BASE}/workspaces/users/${workspaceUserId}/`,
+    // Workspace invitations
+    invitations: (workspaceId: number) =>
+      `${API_BASE}/workspaces/invitations/workspace/${workspaceId}/`,
+    invitationDetail: (invitationId: number) =>
+      `${API_BASE}/workspaces/invitations/${invitationId}/`,
+    sendInvitation: (workspaceId: number) =>
+      `${API_BASE}/workspaces/invitations/workspace/${workspaceId}/`,
+    acceptInvitation: (invitationId: number) =>
+      `${API_BASE}/workspaces/invitations/${invitationId}/accept/`,
+    rejectInvitation: (invitationId: number) =>
+      `${API_BASE}/workspaces/invitations/${invitationId}/reject/`,
+    invitationByToken: (token: string) =>
+      `${API_BASE}/workspaces/invitations/token/${token}/`,
+    // Workspace teams
+    teams: (workspaceId: number) => `${API_BASE}/teams/workspace/${workspaceId}/`,
+    createTeam: (workspaceId: number) => `${API_BASE}/teams/workspace/${workspaceId}/`,
+    // Trash per workspace
+    workspaceTrash: (workspaceId: number) => `${API_BASE}/trash/workspace/${workspaceId}/`,
+    emptyWorkspaceTrash: (workspaceId: number) => `${API_BASE}/trash/workspace/${workspaceId}/`,
+  },
 };

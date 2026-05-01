@@ -213,3 +213,95 @@ type FieldType =
   | "datetime"
   | "single_select"
   | "multiple_select";
+
+// ─── Workspaces ──────────────────────────────────────────────
+
+export interface Workspace {
+  id: number;
+  name: string;
+  generative_ai_models_enabled: string;
+}
+
+export interface WorkspaceUser {
+  id: number;
+  name: string;
+  email: string;
+  workspace: number;
+  permissions: string; // "ADMIN" | "MEMBER" | "VIEWER"
+}
+
+export interface WorkspaceInvitation {
+  id: number;
+  workspace: number;
+  email: string;
+  permissions: string;
+  invited_by?: { id: number; name: string };
+  created_on?: string;
+}
+
+export interface WorkspaceCreate {
+  name: string;
+}
+
+export interface WorkspaceUpdate {
+  name?: string;
+}
+
+// Workspaces
+export const fetchWorkspaces = async (client: ApiClient): Promise<Workspace[]> => {
+  const data = await client.get(Endpoints.workspaces.list());
+  return Array.isArray(data) ? data : (data.results ?? []);
+};
+
+export const createWorkspace = async (client: ApiClient, body: WorkspaceCreate): Promise<Workspace> => {
+  return client.post(Endpoints.workspaces.create(), body);
+};
+
+export const updateWorkspace = async (client: ApiClient, workspaceId: number, body: WorkspaceUpdate): Promise<Workspace> => {
+  return client.patch(Endpoints.workspaces.update(workspaceId), body);
+};
+
+export const deleteWorkspace = async (client: ApiClient, workspaceId: number): Promise<void> => {
+  return client.delete(Endpoints.workspaces.delete(workspaceId));
+};
+
+export const leaveWorkspace = async (client: ApiClient, workspaceId: number): Promise<void> => {
+  return client.post(Endpoints.workspaces.leave(workspaceId), {});
+};
+
+// Workspace Users
+export const fetchWorkspaceUsers = async (client: ApiClient, workspaceId: number): Promise<WorkspaceUser[]> => {
+  const data = await client.get(Endpoints.workspaces.users(workspaceId));
+  return Array.isArray(data) ? data : (data.results ?? []);
+};
+
+export const updateWorkspaceUser = async (client: ApiClient, workspaceUserId: number, permissions: string): Promise<WorkspaceUser> => {
+  return client.patch(Endpoints.workspaces.updateUser(workspaceUserId), { permissions });
+};
+
+export const removeWorkspaceUser = async (client: ApiClient, workspaceUserId: number): Promise<void> => {
+  return client.delete(Endpoints.workspaces.removeUser(workspaceUserId));
+};
+
+// Workspace Invitations
+export const fetchWorkspaceInvitations = async (client: ApiClient, workspaceId: number): Promise<WorkspaceInvitation[]> => {
+  return client.get(Endpoints.workspaces.invitations(workspaceId));
+};
+
+export const sendWorkspaceInvitation = async (client: ApiClient, workspaceId: number, email: string, permissions: string): Promise<WorkspaceInvitation> => {
+  return client.post(Endpoints.workspaces.sendInvitation(workspaceId), { email, permissions });
+};
+
+export const acceptWorkspaceInvitation = async (client: ApiClient, invitationId: number): Promise<void> => {
+  return client.post(Endpoints.workspaces.acceptInvitation(invitationId), {});
+};
+
+export const rejectWorkspaceInvitation = async (client: ApiClient, invitationId: number): Promise<void> => {
+  return client.post(Endpoints.workspaces.rejectInvitation(invitationId), {});
+};
+
+export const getInvitationByToken = async (token: string): Promise<WorkspaceInvitation & { workspace_name?: string }> => {
+  const res = await fetch(Endpoints.workspaces.invitationByToken(token));
+  if (!res.ok) throw new Error(`Failed to fetch invitation: ${res.status}`);
+  return res.json();
+};
