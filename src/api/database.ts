@@ -310,6 +310,100 @@ export async function deleteNotification(
   return client.delete(Endpoints.notifications.markRead(workspaceId, notificationId));
 }
 
+// User Profile helpers
+export interface UserAccount {
+  first_name: string;
+  language: string;
+  email_notification_frequency: "instant" | "daily" | "weekly" | "never";
+  completed_onboarding: boolean;
+  completed_guided_tours: string[];
+}
+
+export interface UserDashboard {
+  workspace_invitations: WorkspaceInvitation[];
+}
+
+export interface WorkspaceInvitation {
+  id: number;
+  invited_by: string;
+  workspace: string;
+  email: string;
+  created_on: string;
+  accepted_on?: string;
+}
+
+export interface ChangeEmailPayload {
+  new_email: string;
+  password: string;
+  base_url: string;
+}
+
+export interface ChangePasswordPayload {
+  new_password: string;
+  new_password_confirm: string;
+  old_password: string;
+}
+
+// GET /api/user/me/ — current user profile
+export async function fetchMe(apiCall: (req: any) => Promise<any>): Promise<any> {
+  return apiCall((c: any) => c.get("/api/user/me/"));
+}
+
+// GET /api/user/account/ — editable account settings
+export async function fetchAccount(apiCall: (req: any) => Promise<any>): Promise<UserAccount> {
+  return apiCall((c: any) => c.get("/api/user/account/"));
+}
+
+// PATCH /api/user/account/ — update first name, language, notifications
+export async function updateAccount(
+  apiCall: (req: any) => Promise<any>,
+  payload: Partial<UserAccount>,
+): Promise<UserAccount> {
+  return apiCall((c: any) => c.patch("/api/user/account/", payload));
+}
+
+// POST /api/user/change-password/
+export async function changePassword(
+  apiCall: (req: any) => Promise<any>,
+  payload: ChangePasswordPayload,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/change-password/", payload));
+}
+
+// POST /api/user/send-change-email-confirmation/
+export async function sendChangeEmailConfirmation(
+  apiCall: (req: any) => Promise<any>,
+  payload: ChangeEmailPayload,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/send-change-email-confirmation/", payload));
+}
+
+// POST /api/user/change-email/ (confirm with token)
+export async function changeEmail(
+  apiCall: (req: any) => Promise<any>,
+  token: string,
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/change-email/", { token }));
+}
+
+// POST /api/user/send-verify-email/
+export async function sendVerifyEmail(apiCall: (req: any) => Promise<any>): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/send-verify-email/"));
+}
+
+// GET /api/user/dashboard/ — workspace invitations
+export async function fetchDashboard(apiCall: (req: any) => Promise<any>): Promise<UserDashboard> {
+  return apiCall((c: any) => c.get("/api/user/dashboard/"));
+}
+
+// POST /api/user/schedule-account-deletion/
+export async function scheduleAccountDeletion(
+  apiCall: (req: any) => Promise<any>,
+  payload: { days: number },
+): Promise<void> {
+  await apiCall((c: any) => c.post("/api/user/schedule-account-deletion/", payload));
+}
+
 // Field type union for TypeScript
 type FieldType =
   | "text"

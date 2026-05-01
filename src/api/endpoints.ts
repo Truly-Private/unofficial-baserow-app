@@ -7,7 +7,29 @@ export const Endpoints = {
     // See: https://baserow.io/docs/apis/rest-api
     login: () => `${API_BASE}/user/token-auth/`,
     refresh: () => `${API_BASE}/user/token-refresh/`,
+    verify: () => `${API_BASE}/user/token-verify/`,
     me: () => `${API_BASE}/user/me/`,
+    logout: () => `${API_BASE}/user/token-blacklist/`,
+    // User account management
+    account: () => `${API_BASE}/user/account/`,
+    changePassword: () => `${API_BASE}/user/change-password/`,
+    changeEmail: () => `${API_BASE}/user/change-email/`,
+    sendChangeEmailConfirmation: () => `${API_BASE}/user/send-change-email-confirmation/`,
+    // Email verification
+    verifyEmail: () => `${API_BASE}/user/verify-email/`,
+    sendVerifyEmail: () => `${API_BASE}/user/send-verify-email/`,
+    // Password reset
+    sendResetPasswordEmail: () => `${API_BASE}/user/send-reset-password-email/`,
+    resetPassword: () => `${API_BASE}/user/reset-password/`,
+    // Dashboard & undo/redo
+    dashboard: () => `${API_BASE}/user/dashboard/`,
+    undo: () => `${API_BASE}/user/undo/`,
+    redo: () => `${API_BASE}/user/redo/`,
+    // Account deletion
+    scheduleAccountDeletion: () => `${API_BASE}/user/schedule-account-deletion/`,
+    // User management (admin)
+    userList: () => `${API_BASE}/user/`,
+    userDetail: (userId: number) => `${API_BASE}/user/${userId}/`,
   },
   databases: {
     list: () => `${API_BASE}/database/databases/`,
