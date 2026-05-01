@@ -615,6 +615,37 @@ export default function WorkspacesScreen() {
             </Text>
           </View>
 
+          {/* Dashboards shortcut */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.appCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            onPress={() => router.push("/(app)/dashboard")}
+            data-testid="nav-dashboards"
+          >
+            <View
+              style={[
+                styles.appIconWrap,
+                { backgroundColor: colors.muted, borderColor: colors.border, borderRadius: colors.radius },
+              ]}
+            >
+              <Feather name="bar-chart-2" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.appName, { color: colors.text }]}>Dashboards</Text>
+              <Text style={[styles.appType, { color: colors.mutedForeground }]}>
+                View all dashboards →
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </Pressable>
+
           {groups.map((group) => (
             <View key={group.id} style={styles.section}>
               <View style={styles.sectionHeader}>
