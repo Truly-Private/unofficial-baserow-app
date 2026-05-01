@@ -16,19 +16,25 @@ async function loginOnce(page: any): Promise<boolean> {
   const html = await page.content();
   
   if (html.includes("Sign in to Baserow")) {
-    // Need to log in
-    await page.type('input[type="text"]', TEST_EMAIL, { delay: 50 }).catch(() => {});
-    await page.type('input[type="password"]', TEST_PASSWORD, { delay: 50 }).catch(() => {});
-    await page.click('text=Sign in', { timeout: 5000 }).catch(async () => {
-      await page.click("div:has-text('Sign in')", { timeout: 5000 }).catch(() => {});
-    });
+    // Need to log in - use Playwright locators based on placeholder text
+    const emailInput = page.getByPlaceholder("you@example.com");
+    const passwordInput = page.getByPlaceholder("Your password");
     
-    // Wait for auth
-    await page.waitForTimeout(3000);
-    
-    const postLoginHtml = await page.content();
-    if (postLoginHtml.includes("Sign in to Baserow")) {
-      console.log("Login failed");
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(TEST_EMAIL);
+      await passwordInput.fill(TEST_PASSWORD);
+      await page.getByRole("button", { name: "Sign in" }).click();
+      
+      // Wait for auth - check for redirect away from login
+      try {
+        await page.waitForFunction(() => {
+          return !document.body.innerHTML.includes("Sign in to Baserow");
+        }, { timeout: 10000 });
+      } catch {
+        console.log("Login may have failed - still on login page");
+        return false;
+      }
+    } else {
       return false;
     }
   }
