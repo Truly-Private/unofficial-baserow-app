@@ -39,6 +39,7 @@ export default function AppLayout() {
         name="builder/page/[id]"
         options={{ title: "Page" }}
       />
+      <Stack.Screen name="admin" options={{ title: "Admin" }} />
       <Stack.Screen name="table/[id]" options={{ title: "Table" }} />
       <Stack.Screen
         name="row/[tableId]/[rowId]"

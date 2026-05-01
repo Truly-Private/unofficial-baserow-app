@@ -392,7 +392,7 @@ async function parseError(res: Response): Promise<BaserowApiError> {
   return new BaserowApiError(res.status, data, message);
 }
 
-async function request<T>(
+export async function request<T>(
   baseUrl: string,
   path: string,
   init: RequestInit = {},

@@ -80,6 +80,47 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Admin panel — visible only for superusers */}
+      {(creds.user as { is_superuser?: boolean }).is_superuser && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            Administration
+          </Text>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Pressable
+              style={styles.row}
+              onPress={() => router.push("/admin")}
+            >
+              <View
+                style={[
+                  styles.rowIcon,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <Feather name="shield" size={14} color={colors.mutedForeground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+                  Admin Panel
+                </Text>
+                <Text style={[styles.rowValue, { color: colors.primary }]}>
+                  Instance administration →
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
           About
