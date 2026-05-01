@@ -138,7 +138,11 @@ test.describe("AI Assistant API", () => {
     await page.route("https://mock-baserow.test/assistant/chat/chat-e2e-uuid/messages/", async (route) => {
       if (route.request().method() === "POST") {
         sentRequests.push(route.request().postDataJSON());
-        await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"content":"Here is a useful assistant response."}\n\n',
+        });
         return;
       }
       await route.continue();
@@ -149,7 +153,7 @@ test.describe("AI Assistant API", () => {
     await page.getByText("Send").click();
 
     await expect(page.getByText("Create a status report")).toBeVisible();
-    await expect(page.getByText("Message sent")).toBeVisible();
+    await expect(page.getByText("Here is a useful assistant response.")).toBeVisible();
     await expect.poll(() => sentRequests.length).toBe(1);
     expect(sentRequests[0]).toMatchObject({
       content: "Create a status report",

@@ -2376,15 +2376,46 @@ export async function sendAssistantMessageSimple(
   content: string,
   uiContext?: AssistantUIContext,
 ): Promise<{ id: number; content: string }> {
-  // Use the streaming response and collect the final message
   const stream = await sendAssistantMessage(creds, chatUuid, content, uiContext);
-  const reader = stream[Symbol.asyncIterator]();
-  let result = "";
-  let messageId: number | null = null;
+  const chunks: string[] = [];
+  const decoder = new TextDecoder();
+  const body = stream as unknown as ReadableStream<Uint8Array> | AsyncIterable<Uint8Array | string> | null;
 
-  // Note: In a real implementation, you'd parse SSE events here
-  // For now, this is a placeholder that returns the request status
-  return { id: 0, content: "Message sent" };
+  if (body && typeof (body as ReadableStream<Uint8Array>).getReader === "function") {
+    const reader = (body as ReadableStream<Uint8Array>).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(decoder.decode(value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+  } else if (body && typeof (body as AsyncIterable<Uint8Array | string>)[Symbol.asyncIterator] === "function") {
+    for await (const chunk of body as AsyncIterable<Uint8Array | string>) {
+      chunks.push(typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+  }
+
+  const raw = chunks.join("");
+  let messageId = 0;
+  const contentParts: string[] = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    try {
+      const event = JSON.parse(data);
+      if (typeof event.id === "number") messageId = event.id;
+      const text = event.content ?? event.message ?? event.text ?? event.delta ?? event.answer;
+      if (typeof text === "string") contentParts.push(text);
+    } catch {
+      contentParts.push(data);
+    }
+  }
+
+  const parsedContent = contentParts.join("").trim();
+  return { id: messageId, content: parsedContent || raw.trim() || "Assistant response received." };
 }
 
 /**
