@@ -23,7 +23,8 @@ async function loginOnce(page: any): Promise<boolean> {
     if (await emailInput.isVisible()) {
       await emailInput.fill(TEST_EMAIL);
       await passwordInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign in" }).click();
+      // Use getByText since React Native renders button as generic element
+      await page.getByText("Sign in").click();
       
       // Wait for auth - check for redirect away from login
       try {
