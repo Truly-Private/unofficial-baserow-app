@@ -259,6 +259,57 @@ export async function setRowCommentNotificationMode(
   );
 }
 
+// Notifications helpers
+export interface NotificationRecipient {
+  id: number;
+  type: string;
+  sender: { id: number; username: string; first_name?: string };
+  workspace: string;
+  created_on: string;
+  read: boolean;
+  data: any;
+}
+
+export interface NotificationListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: NotificationRecipient[];
+}
+
+export async function fetchNotifications(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.get(Endpoints.notifications.list(workspaceId));
+}
+
+export async function markNotificationRead(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.patch(
+    Endpoints.notifications.markRead(workspaceId, notificationId),
+    { read: true },
+  );
+}
+
+export async function markAllNotificationsRead(
+  client: ApiClient,
+  workspaceId: number,
+) {
+  return client.post(Endpoints.notifications.markAllRead(workspaceId));
+}
+
+export async function deleteNotification(
+  client: ApiClient,
+  workspaceId: number,
+  notificationId: number,
+) {
+  return client.delete(Endpoints.notifications.markRead(workspaceId, notificationId));
+}
+
 // Field type union for TypeScript
 type FieldType =
   | "text"
