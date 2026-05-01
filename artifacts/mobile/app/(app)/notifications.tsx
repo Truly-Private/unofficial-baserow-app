@@ -29,73 +29,15 @@ import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
   listApplications,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
   listWorkspaces,
   type BaserowNotification,
 } from "@/lib/baserow";
 
 type NotificationTab = "notifications" | "settings";
 
-// ─── API types & helpers ────────────────────────────────────────────────────
-
-export type BaserowNotification = {
-  id: number;
-  workspace_id: number;
-  notification_type: string;
-  title: string;
-  message: string;
-  is_read: boolean;
-  sender_user_id: number | null;
-  sender_name: string | null;
-  action_url: string | null;
-  created_on: string;
-  modified_on: string;
-};
-
-export async function listNotifications(
-  creds: { baseUrl: string; jwt: string },
-  workspaceId: number,
-  params?: { limit?: number; offset?: number },
-): Promise<{ results: BaserowNotification[]; count: number }> {
-  const { request } = await import("@/lib/baserow");
-  const query = new URLSearchParams();
-  if (params?.limit) query.set("limit", String(params.limit));
-  if (params?.offset) query.set("offset", String(params.offset));
-  const qs = query.toString() ? `?${query.toString()}` : "";
-  return request<{ results: BaserowNotification[]; count: number }>(
-    creds.baseUrl,
-    `/api/notifications/${workspaceId}/${qs}`,
-    { headers: { Authorization: `JWT ${creds.jwt}` } },
-  );
-}
-
-export async function markNotificationRead(
-  creds: { baseUrl: string; jwt: string },
-  workspaceId: number,
-  notificationId: number,
-  isRead: boolean,
-): Promise<BaserowNotification> {
-  const { request } = await import("@/lib/baserow");
-  return request<BaserowNotification>(
-    creds.baseUrl,
-    `/api/notifications/${workspaceId}/${notificationId}/`,
-    {
-      method: "PATCH",
-      headers: { Authorization: `JWT ${creds.jwt}` },
-      body: JSON.stringify({ is_read: isRead }),
-    },
-  );
-}
-
-export async function markAllNotificationsRead(
-  creds: { baseUrl: string; jwt: string },
-  workspaceId: number,
-): Promise<void> {
-  const { request } = await import("@/lib/baserow");
-  await request<void>(creds.baseUrl, `/api/notifications/${workspaceId}/mark-all-as-read/`, {
-    method: "POST",
-    headers: { Authorization: `JWT ${creds.jwt}` },
-  });
-}
 
 // ─── Notification row ───────────────────────────────────────────────────────
 
@@ -136,13 +78,12 @@ function NotificationRow({
   onRefresh: () => void;
   colors: ReturnType<typeof useColors>;
 }) {
-  const { apiCall } = useAuth();
   const creds = useCreds();
   const queryClient = useQueryClient();
 
   const markMutation = useMutation({
     mutationFn: (isRead: boolean) =>
-      markNotificationRead({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId, notification.id, isRead),
+      markNotificationRead(creds, workspaceId, notification.id, isRead),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
       onRefresh();
@@ -234,12 +175,12 @@ function NotificationsTab({ colors, insets }: { colors: ReturnType<typeof useCol
 
   const notifQuery = useQuery({
     queryKey: ["notifications", workspaceId, page],
-    queryFn: () => listNotifications({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    queryFn: () => listNotifications(creds, workspaceId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
     enabled: workspaceId > 0,
   });
 
   const markAllMutation = useMutation({
-    mutationFn: () => markAllNotificationsRead({ baseUrl: creds.baseUrl, jwt: creds.jwt }, workspaceId),
+    mutationFn: () => markAllNotificationsRead(creds, workspaceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", workspaceId] });
       setPage(0);

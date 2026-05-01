@@ -220,6 +220,27 @@ export type BaserowComment = {
   last_modified: string;
 };
 
+export type BaserowNotification = {
+  id: number;
+  workspace_id: number;
+  notification_type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  sender_user_id: number | null;
+  sender_name: string | null;
+  action_url: string | null;
+  created_on: string;
+  modified_on: string;
+};
+
+export type BaserowNotificationsResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: BaserowNotification[];
+};
+
 export type BaserowDashboardWidget = {
   id: number;
   type: string;
@@ -466,6 +487,66 @@ export async function createWorkspace(
     method: "POST",
     headers: authHeader(creds),
     body: JSON.stringify(params),
+  });
+}
+
+export async function listNotifications(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params?: { limit?: number; offset?: number },
+): Promise<BaserowNotificationsResponse> {
+  const query = new URLSearchParams();
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.offset !== undefined) query.set("offset", String(params.offset));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+
+  return request<BaserowNotificationsResponse>(
+    creds.baseUrl,
+    `/api/notifications/${workspaceId}/${suffix}`,
+    {
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function markNotificationRead(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  notificationId: number,
+  isRead: boolean,
+): Promise<BaserowNotification> {
+  return request<BaserowNotification>(
+    creds.baseUrl,
+    `/api/notifications/${workspaceId}/${notificationId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ is_read: isRead }),
+    },
+  );
+}
+
+export async function markAllNotificationsRead(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/notifications/${workspaceId}/mark-all-as-read/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function clearWorkspaceNotifications(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/notifications/${workspaceId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
   });
 }
 
