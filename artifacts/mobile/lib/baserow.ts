@@ -10,6 +10,10 @@ export type BaserowUser = {
   email: string;
   username?: string;
   first_name?: string;
+  language?: string;
+  notification_email_frequency?: "instant" | "daily" | "weekly" | "never";
+  email_notification_frequency?: "instant" | "daily" | "weekly" | "never";
+  first_workspace_id?: number | null;
 };
 
 export type BaserowWorkspace = {
@@ -106,6 +110,9 @@ export type BaserowView = {
   type: BaserowViewType;
   filters_disabled?: boolean;
   public?: boolean;
+  public_view_slug?: string;
+  public_view_password?: string;
+  slug?: string;
 };
 
 export type BaserowViewFilter = {
