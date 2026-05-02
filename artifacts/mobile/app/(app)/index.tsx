@@ -13,6 +13,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -723,6 +724,39 @@ export default function WorkspacesScreen() {
             </View>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </Pressable>
+
+          {/* Reminders shortcut — iOS / macOS only */}
+          {(Platform.OS === "ios" || (Platform.OS as string) === "macos") && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.appCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              onPress={() => router.push("/(app)/reminders")}
+              data-testid="nav-reminders"
+            >
+              <View
+                style={[
+                  styles.appIconWrap,
+                  { backgroundColor: colors.muted, borderColor: colors.border, borderRadius: colors.radius },
+                ]}
+              >
+                <Feather name="bell" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.appName, { color: colors.text }]}>Reminders</Text>
+                <Text style={[styles.appType, { color: colors.mutedForeground }]}>
+                  View and create iOS Reminders →
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          )}
 
           {groups.map((group) => (
             <View key={group.id} style={styles.section}>
