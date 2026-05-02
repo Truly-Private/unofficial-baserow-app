@@ -246,6 +246,7 @@ export default function EditRowScreen() {
                 key={f.id}
                 field={f}
                 value={values[f.name]}
+                reminderKey={`${tableId}_${rowId}_${f.id}`}
                 onChange={(next) => {
                   setValues((prev) => ({ ...prev, [f.name]: next }));
                   setDirty(true);

@@ -29,7 +29,14 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar.",
+          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders so you can set due date alerts from row date fields."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
