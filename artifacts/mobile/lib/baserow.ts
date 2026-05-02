@@ -439,13 +439,34 @@ export type BaserowApplicationSnapshot = {
   [key: string]: unknown;
 };
 
+export type Snapshot = BaserowApplicationSnapshot;
+
+export type BaserowTrashItem = {
+  id: number;
+  user_who_trashed?: string;
+  trash_item_type: string;
+  trash_item_id: number;
+  parent_trash_item_id?: number | null;
+  trashed_at: string;
+  application?: number;
+  workspace?: number;
+  name?: string;
+  parent_name?: string;
+  names?: string[];
+  [key: string]: unknown;
+};
+
 export type AssistantChat = {
   id: string;
   uuid: string;
   workspace_id: number;
   created_at: string;
   updated_at: string;
+  title?: string;
+  created_on?: string;
 };
+
+export type BaserowAssistantChat = AssistantChat;
 
 export type AssistantMessage = {
   id: number;
@@ -453,6 +474,8 @@ export type AssistantMessage = {
   role: 'user' | 'assistant';
   created_at: string;
 };
+
+export type BaserowAssistantMessage = AssistantMessage;
 
 export type AssistantMessagesResponse = {
   count: number;

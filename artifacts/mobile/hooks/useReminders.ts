@@ -206,7 +206,7 @@ export function useRowReminder(key: string | undefined) {
         Calendar.EntityTypes.REMINDER,
       );
       const remList =
-        calendars.find((c) => c.allowsModifications) ?? calendars[0];
+        calendars.find((c: Calendar.Calendar) => c.allowsModifications) ?? calendars[0];
       if (!remList) {
         Alert.alert("No Reminders List", "Could not find a Reminders list.");
         return;
