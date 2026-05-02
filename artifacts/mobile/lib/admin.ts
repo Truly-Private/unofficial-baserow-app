@@ -309,10 +309,12 @@ export async function listAdminUsers(
   if (params?.page_size != null) qs.set("page_size", String(params.page_size));
   if (params?.search) qs.set("search", params.search);
   const query = qs.toString();
-  return request(creds.baseUrl, `/api/admin/users/?${query}`, {
+  const path = query ? `/api/admin/users/?${query}` : "/api/admin/users/";
+  return request(creds.baseUrl, path, {
     headers: authHeader(creds),
   });
 }
+
 
 /**
  * Create a new user on the instance (admin only).
@@ -384,7 +386,8 @@ export async function listAdminWorkspaces(
   if (params?.page_size != null) qs.set("page_size", String(params.page_size));
   if (params?.search) qs.set("search", params.search);
   const query = qs.toString();
-  return request(creds.baseUrl, `/api/admin/workspaces/?${query}`, {
+  const path = query ? `/api/admin/workspaces/?${query}` : "/api/admin/workspaces/";
+  return request(creds.baseUrl, path, {
     headers: authHeader(creds),
   });
 }
@@ -439,7 +442,20 @@ export async function listAuditLog(
   if (params?.from_timestamp) qs.set("from_timestamp", params.from_timestamp);
   if (params?.to_timestamp) qs.set("to_timestamp", params.to_timestamp);
   const query = qs.toString();
-  return request(creds.baseUrl, `/api/admin/audit-log/?${query}`, {
+  const path = query ? `/api/admin/audit-log/?${query}` : "/api/admin/audit-log/";
+  return request(creds.baseUrl, path, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * List all users that have performed an action in the audit log.
+ * GET /api/admin/audit-log/users/
+ */
+export async function listAuditLogUsers(
+  creds: BaserowCredentials,
+): Promise<any[]> {
+  return request(creds.baseUrl, "/api/admin/audit-log/users/", {
     headers: authHeader(creds),
   });
 }
@@ -696,6 +712,18 @@ export async function deleteAuthProvider(
 ): Promise<void> {
   await request(creds.baseUrl, `/api/admin/auth-provider/${providerId}/`, {
     method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Get detailed health status for the instance (admin only).
+ * GET /api/admin/health/
+ */
+export async function getAdminHealth(
+  creds: BaserowCredentials,
+): Promise<unknown> {
+  return request(creds.baseUrl, "/api/admin/health/", {
     headers: authHeader(creds),
   });
 }

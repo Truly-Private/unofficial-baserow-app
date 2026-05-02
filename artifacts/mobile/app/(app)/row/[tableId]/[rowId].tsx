@@ -174,14 +174,42 @@ export default function EditRowScreen() {
         options={{
           title: tableName,
           headerRight: () => (
-            <Pressable
-              hitSlop={10}
-              onPress={confirmDelete}
-              disabled={deleteMutation.isPending}
-              style={{ paddingHorizontal: 4, opacity: deleteMutation.isPending ? 0.5 : 1 }}
-            >
-              <Feather name="trash-2" size={20} color={colors.destructive} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Pressable
+                hitSlop={10}
+                onPress={() =>
+                  router.push({
+                    pathname: "/row/[tableId]/[rowId]/history",
+                    params: { tableId, rowId, tableName },
+                  })
+                }
+                style={{ paddingHorizontal: 8 }}
+                testID="row-history-btn"
+              >
+                <Feather name="clock" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                hitSlop={10}
+                onPress={() =>
+                  router.push({
+                    pathname: "/row/[tableId]/[rowId]/comments",
+                    params: { tableId, rowId, tableName },
+                  })
+                }
+                style={{ paddingHorizontal: 8 }}
+                testID="row-comments-btn"
+              >
+                <Feather name="message-circle" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                hitSlop={10}
+                onPress={confirmDelete}
+                disabled={deleteMutation.isPending}
+                style={{ paddingHorizontal: 4, opacity: deleteMutation.isPending ? 0.5 : 1 }}
+              >
+                <Feather name="trash-2" size={20} color={colors.destructive} />
+              </Pressable>
+            </View>
           ),
         }}
       />

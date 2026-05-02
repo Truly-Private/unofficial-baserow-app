@@ -11,59 +11,47 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
-import { useAIChat } from "@/hooks/useAIChat";
+import { useBaserowAI, type ChatMessage } from "@/hooks/useBaserowAI";
 import { useAuth } from "@/contexts/AuthContext";
-import { createRow } from "@/lib/baserow";
 
 export default function AIChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webInsets = useWebInsets();
   const router = useRouter();
-  const { apiCall } = useAuth();
-  const params = useLocalSearchParams<{ tableId?: string; tableName?: string }>();
+  const { user } = useAuth();
+  
+  const params = useLocalSearchParams<{ 
+    workspaceId?: string; 
+    tableId?: string; 
+    tableName?: string 
+  }>();
 
-  const [inputText, setInputText] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-
-  const tableId = params.tableId ? Number(params.tableId) : undefined;
+  // Try to get workspaceId from params or fallback to first workspace
+  const workspaceId = params.workspaceId ? Number(params.workspaceId) : (user?.first_workspace_id || 1);
   const tableName = params.tableName;
 
+  const [inputText, setInputText] = useState("");
+  const [showSessions, setShowSessions] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
+
   const {
+    chats,
     messages,
     isProcessing,
-    pendingIntent,
+    currentChatUuid,
     sendMessage,
-    confirmCreate,
-    cancelAction,
-    clearChat,
-    initializeAI,
-  } = useAIChat({
-    tableId,
-    tableName,
-    onRecordCreate: async (fields) => {
-      if (!tableId) {
-        throw new Error("No table selected");
-      }
-      await apiCall((client) => createRow(client, tableId, fields));
-    },
-  });
-
-  // Initialize AI service when API key is set
-  useEffect(() => {
-    if (apiKey) {
-      initializeAI(apiKey, "openai");
-      setShowSettings(false);
-    }
-  }, [apiKey, initializeAI]);
+    selectChat,
+    startNewChat,
+    isLoading,
+  } = useBaserowAI(workspaceId);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -76,17 +64,11 @@ export default function AIChatScreen() {
 
   const handleSend = () => {
     if (!inputText.trim() || isProcessing) return;
-
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
-
     sendMessage(inputText.trim());
     setInputText("");
   };
 
-  const renderMessage = ({ item }: { item: any }) => {
+  const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === "user";
 
     return (
@@ -105,7 +87,7 @@ export default function AIChatScreen() {
             },
           ]}
         >
-          {item.isLoading ? (
+          {item.isLoading && !item.content ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Text
@@ -121,7 +103,7 @@ export default function AIChatScreen() {
           )}
           {item.error && (
             <Text style={[styles.errorText, { color: colors.destructive }]}>
-              Error: {item.error}
+              {item.error}
             </Text>
           )}
         </View>
@@ -132,7 +114,7 @@ export default function AIChatScreen() {
   const topPad = Math.max(insets.top, webInsets.top, 16);
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16);
 
-  if (showSettings) {
+  if (showSessions) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View
@@ -144,52 +126,61 @@ export default function AIChatScreen() {
             },
           ]}
         >
-          <Pressable onPress={() => setShowSettings(false)} hitSlop={10}>
+          <Pressable onPress={() => setShowSessions(false)} hitSlop={10}>
             <Feather name="x" size={24} color={colors.foreground} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            AI Settings
+            Recent Chats
           </Text>
           <View style={{ width: 24 }} />
         </View>
 
-        <View style={styles.settingsContent}>
-          <Text style={[styles.settingsLabel, { color: colors.foreground }]}>
-            OpenAI API Key
-          </Text>
-          <TextInput
-            style={[
-              styles.settingsInput,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-              },
-            ]}
-            value={apiKey}
-            onChangeText={setApiKey}
-            placeholder="sk-..."
-            placeholderTextColor={colors.mutedForeground}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Text style={[styles.settingsHint, { color: colors.mutedForeground }]}>
-            Your API key is stored locally and never shared.
-          </Text>
-
-          <Button
-            title="Save"
+        <ScrollView style={styles.sessionsContent}>
+          <Pressable
+            style={[styles.sessionItem, { borderBottomColor: colors.border }]}
             onPress={() => {
-              if (apiKey) {
-                initializeAI(apiKey, "openai");
-                setShowSettings(false);
-              }
+              startNewChat();
+              setShowSessions(false);
             }}
-            disabled={!apiKey}
-            style={styles.saveButton}
-          />
-        </View>
+          >
+            <View style={[styles.newChatIcon, { backgroundColor: colors.primary }]}>
+              <Feather name="plus" size={16} color={colors.primaryForeground} />
+            </View>
+            <Text style={[styles.sessionTitle, { color: colors.primary, fontWeight: '700' }]}>
+              Start New Chat
+            </Text>
+          </Pressable>
+
+          {chats.map((chat) => (
+            <Pressable
+              key={chat.uuid}
+              style={[
+                styles.sessionItem,
+                { 
+                  borderBottomColor: colors.border,
+                  backgroundColor: currentChatUuid === chat.uuid ? colors.muted : 'transparent'
+                }
+              ]}
+              onPress={() => {
+                selectChat(chat.uuid);
+                setShowSessions(false);
+              }}
+            >
+              <Feather name="message-square" size={18} color={colors.mutedForeground} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.sessionTitle, { color: colors.foreground }]} numberOfLines={1}>
+                  {chat.title || "Untitled Chat"}
+                </Text>
+                <Text style={[styles.sessionDate, { color: colors.mutedForeground }]}>
+                  {new Date(chat.created_on).toLocaleDateString()}
+                </Text>
+              </View>
+              {currentChatUuid === chat.uuid && (
+                <Feather name="check" size={16} color={colors.primary} />
+              )}
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
     );
   }
@@ -222,41 +213,60 @@ export default function AIChatScreen() {
             </Text>
           )}
         </View>
-        <Pressable onPress={() => setShowSettings(true)} hitSlop={10}>
-          <Feather name="settings" size={24} color={colors.foreground} />
+        <Pressable onPress={() => setShowSessions(true)} hitSlop={10}>
+          <Feather name="list" size={24} color={colors.foreground} />
         </Pressable>
       </View>
 
-      {messages.length === 0 ? (
+      {isLoading && messages.length === 0 ? (
+        <LoadingState />
+      ) : messages.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="message-circle" size={64} color={colors.mutedForeground} />
+          <View style={[styles.emptyIconCircle, { backgroundColor: colors.primary + '15' }]}>
+            <Feather name="cpu" size={40} color={colors.primary} />
+          </View>
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            AI-Powered Record Creation
+            Baserow Native AI
           </Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Describe what you want to create in natural language, and I'll help you
-            add it to your table.
+            Interact with your workspace using natural language. Ask questions about your data, generate reports, or create new records effortlessly.
           </Text>
-          <View style={styles.exampleContainer}>
+          
+          <View style={[styles.exampleContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.exampleTitle, { color: colors.foreground }]}>
-              Try saying:
+              Try asking:
             </Text>
-            <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
-              • "Add a new task: Review Q4 budget"
-            </Text>
-            <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
-              • "Create customer John Smith, email john@example.com"
-            </Text>
-            <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
-              • "Schedule meeting tomorrow at 2pm"
-            </Text>
+            <View style={styles.exampleRow}>
+              <Feather name="search" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
+                "Who are my top customers by revenue?"
+              </Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Feather name="edit" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
+                "Draft a project update based on current tasks."
+              </Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Feather name="plus-circle" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.exampleText, { color: colors.mutedForeground }]}>
+                "Add a record for 'New Website Launch' on Friday."
+              </Text>
+            </View>
           </View>
+
+          <Button 
+            title="Start Chatting" 
+            onPress={() => setInputText("Hello! How can you help me today?")}
+            style={{ marginTop: 20 }}
+          />
         </View>
       ) : (
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           renderItem={renderMessage}
           contentContainerStyle={{
             paddingHorizontal: 16,
@@ -264,35 +274,6 @@ export default function AIChatScreen() {
             paddingBottom: 16,
           }}
         />
-      )}
-
-      {pendingIntent && (
-        <View
-          style={[
-            styles.actionBar,
-            {
-              backgroundColor: colors.card,
-              borderTopColor: colors.border,
-            },
-          ]}
-        >
-          <Text style={[styles.actionText, { color: colors.foreground }]}>
-            Confirm action?
-          </Text>
-          <View style={styles.actionButtons}>
-            <Button
-              title="Cancel"
-              variant="secondary"
-              onPress={cancelAction}
-              style={styles.actionButton}
-            />
-            <Button
-              title="Create"
-              onPress={confirmCreate}
-              style={styles.actionButton}
-            />
-          </View>
-        </View>
       )}
 
       <View
@@ -319,7 +300,7 @@ export default function AIChatScreen() {
           placeholder="Type your message..."
           placeholderTextColor={colors.mutedForeground}
           multiline
-          maxLength={500}
+          maxLength={1000}
           editable={!isProcessing}
           onSubmitEditing={handleSend}
         />
@@ -352,6 +333,13 @@ export default function AIChatScreen() {
   );
 }
 
+const LoadingState = () => (
+  <View style={styles.emptyState}>
+    <ActivityIndicator size="large" />
+    <Text style={{ marginTop: 12 }}>Loading messages...</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -383,33 +371,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
   },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
   emptyTitle: {
-    fontSize: 20,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: 24,
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
     marginBottom: 12,
     textAlign: "center",
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 32,
   },
   exampleContainer: {
     width: "100%",
     maxWidth: 400,
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 16,
   },
   exampleTitle: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     marginBottom: 12,
   },
+  exampleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
   exampleText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    lineHeight: 24,
+    lineHeight: 20,
   },
   messageContainer: {
     marginBottom: 16,
@@ -421,39 +425,21 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   messageBubble: {
-    maxWidth: "80%",
+    maxWidth: "85%",
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
   },
   messageText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   errorText: {
     fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
-  },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-  },
-  actionText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionButton: {
-    minWidth: 80,
+    fontFamily: "Inter_500Medium",
+    marginTop: 6,
+    color: '#ef4444',
   },
   inputContainer: {
     flexDirection: "row",
@@ -466,12 +452,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderRadius: 22,
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
-    maxHeight: 100,
+    maxHeight: 120,
   },
   sendButton: {
     width: 44,
@@ -480,29 +466,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  settingsContent: {
-    padding: 24,
+  sessionsContent: {
+    flex: 1,
   },
-  settingsLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 8,
+  sessionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
   },
-  settingsInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
+  newChatIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  settingsHint: {
+  sessionTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+  },
+  sessionDate: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  saveButton: {
-    marginTop: 16,
+    marginTop: 2,
   },
 });
+

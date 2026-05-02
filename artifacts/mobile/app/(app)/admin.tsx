@@ -21,7 +21,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Tabs } from "react-native-tab-view-ui";
+
 
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
@@ -68,7 +68,9 @@ import {
   updateAdminUser,
   updateAuthProvider,
   updateDataScan,
+  getAdminHealth,
 } from "@/lib/admin";
+import { getHealth, getSettings, type BaserowSettings } from "@/lib/baserow";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,13 +119,15 @@ function SectionHeader({
   title,
   action,
   colors,
+  style,
 }: {
   title: string;
   action?: React.ReactNode;
   colors: ReturnType<typeof useColors>;
+  style?: any;
 }) {
   return (
-    <View style={styles.sectionHeader}>
+    <View style={[styles.sectionHeader, style]}>
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
         {title.toUpperCase()}
       </Text>
@@ -200,8 +204,8 @@ function DashboardTab({
     () => apiCall((c) => getAdminDashboard(c)),
   );
 
-  if (query.isLoading) return <LoadingState colors={colors} />;
-  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} colors={colors} />;
+  if (query.isLoading) return <LoadingState />;
+  if (query.isError) return <ErrorState message={query.error?.message} onRetry={() => { query.refetch(); }} />;
 
   const d: BaserowAdminDashboard | undefined = query.data;
 
@@ -347,7 +351,7 @@ function UsersTab({
           value={search}
           onChangeText={(t) => { setSearch(t); setPage(1); }}
         />
-        <Button title="+ New" onPress={() => setCreateOpen(true)} size="sm" style={{ marginLeft: 8 }} />
+        <Button title="+ New" onPress={() => setCreateOpen(true)} style={{ marginLeft: 8 }} />
       </View>
 
       <ScrollView
@@ -358,11 +362,11 @@ function UsersTab({
         }
       >
         {query.isLoading ? (
-          <LoadingState colors={colors} />
+          <LoadingState />
         ) : query.isError ? (
-          <ErrorState error={query.error} onRetry={query.refetch} colors={colors} />
+          <ErrorState message={query.error?.message} onRetry={() => { query.refetch(); }} />
         ) : users.length === 0 ? (
-          <EmptyState message="No users found." icon="users" colors={colors} />
+          <EmptyState title="No users found." icon="users" />
         ) : (
           users.map((user) => (
             <RowCard key={user.id} colors={colors}>
@@ -416,9 +420,9 @@ function UsersTab({
       {/* Pagination */}
       {totalPages > 1 && (
         <View style={[styles.pagination, { borderTopColor: colors.border }]}>
-          <Button title="← Prev" size="sm" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
+          <Button title="← Prev" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
           <Text style={{ color: colors.mutedForeground }}>{page} / {totalPages}</Text>
-          <Button title="Next →" size="sm" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
+          <Button title="Next →" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
         </View>
       )}
 
@@ -426,7 +430,7 @@ function UsersTab({
       <Modal visible={createOpen} animationType="slide" transparent>
         <UserFormModal
           colors={colors}
-          onSubmit={(payload) => createMut.mutate(payload)}
+          onSubmit={(payload: BaserowAdminUserCreate | BaserowAdminUserUpdate) => createMut.mutate(payload as BaserowAdminUserCreate)}
           onClose={() => setCreateOpen(false)}
           submitting={createMut.isPending}
         />
@@ -590,11 +594,11 @@ function WorkspacesTab({
         }
       >
         {query.isLoading ? (
-          <LoadingState colors={colors} />
+          <LoadingState />
         ) : query.isError ? (
-          <ErrorState error={query.error} onRetry={query.refetch} colors={colors} />
+          <ErrorState message={query.error?.message} onRetry={() => { query.refetch(); }} />
         ) : workspaces.length === 0 ? (
-          <EmptyState message="No workspaces found." icon="grid" colors={colors} />
+          <EmptyState title="No workspaces found." icon="grid" />
         ) : (
           workspaces.map((ws) => (
             <RowCard key={ws.id} colors={colors}>
@@ -638,9 +642,9 @@ function WorkspacesTab({
 
       {totalPages > 1 && (
         <View style={[styles.pagination, { borderTopColor: colors.border }]}>
-          <Button title="← Prev" size="sm" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
+          <Button title="← Prev" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
           <Text style={{ color: colors.mutedForeground }}>{page} / {totalPages}</Text>
-          <Button title="Next →" size="sm" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
+          <Button title="Next →" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
         </View>
       )}
     </View>
@@ -728,12 +732,11 @@ function AuditLogTab({
         />
         <Button
           title="Export"
-          size="sm"
           variant="ghost"
           onPress={() => {
             Alert.prompt?.("Export URL", "URL to POST the CSV to:", [
               { text: "Cancel", style: "cancel" },
-              { text: "Export", onPress: (url) => { if (url) { setExportUrl(url); exportMut.mutate(); } } },
+              { text: "Export", onPress: (url?: string) => { if (url) { setExportUrl(url); exportMut.mutate(); } } },
             ]) ?? Alert.alert("Export", "Configure an export URL in the API call to download the audit log as CSV.");
           }}
         />
@@ -779,11 +782,11 @@ function AuditLogTab({
         }
       >
         {query.isLoading ? (
-          <LoadingState colors={colors} />
+          <LoadingState />
         ) : query.isError ? (
-          <ErrorState error={query.error} onRetry={query.refetch} colors={colors} />
+          <ErrorState message={query.error?.message} onRetry={() => { query.refetch(); }} />
         ) : logs.length === 0 ? (
-          <EmptyState message="No audit log entries." icon="activity" colors={colors} />
+          <EmptyState title="No audit log entries." icon="activity" />
         ) : (
           logs.map((log) => (
             <RowCard key={log.id} colors={colors}>
@@ -823,9 +826,9 @@ function AuditLogTab({
 
       {totalPages > 1 && (
         <View style={[styles.pagination, { borderTopColor: colors.border }]}>
-          <Button title="← Prev" size="sm" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
+          <Button title="← Prev" variant="ghost" disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
           <Text style={{ color: colors.mutedForeground }}>{page} / {totalPages}</Text>
-          <Button title="Next →" size="sm" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
+          <Button title="Next →" variant="ghost" disabled={page >= totalPages} onPress={() => setPage((p) => p + 1)} />
         </View>
       )}
     </View>
@@ -905,7 +908,7 @@ function DataScannerTab({
           </Pressable>
         ))}
         {activeTab === "scans" && (
-          <Button title="+ New Scan" size="sm" onPress={() => setCreateOpen(true)} style={{ marginLeft: "auto", marginRight: 12 }} />
+          <Button title="+ New Scan" onPress={() => setCreateOpen(true)} style={{ marginLeft: "auto", marginRight: 12 }} />
         )}
       </View>
 
@@ -915,9 +918,9 @@ function DataScannerTab({
           contentContainerStyle={styles.tabContent}
           refreshControl={<RefreshControl refreshing={scansQ.isFetching} onRefresh={scansQ.refetch} />}
         >
-          {scansQ.isLoading ? <LoadingState colors={colors} /> :
-           scansQ.isError ? <ErrorState error={scansQ.error} onRetry={scansQ.refetch} colors={colors} /> :
-           scans.length === 0 ? <EmptyState message="No data scans configured." icon="search" colors={colors} /> :
+          {scansQ.isLoading ? <LoadingState /> :
+           scansQ.isError ? <ErrorState message={scansQ.error?.message} onRetry={() => { scansQ.refetch(); }} /> :
+           scans.length === 0 ? <EmptyState title="No data scans configured." icon="search" /> :
            scans.map((scan) => (
             <RowCard key={scan.id} colors={colors}>
               <View style={styles.rowPressable}>
@@ -974,9 +977,9 @@ function DataScannerTab({
           contentContainerStyle={styles.tabContent}
           refreshControl={<RefreshControl refreshing={resultsQ.isFetching} onRefresh={resultsQ.refetch} />}
         >
-          {resultsQ.isLoading ? <LoadingState colors={colors} /> :
-           resultsQ.isError ? <ErrorState error={resultsQ.error} onRetry={resultsQ.refetch} colors={colors} /> :
-           results.length === 0 ? <EmptyState message="No scan results yet." icon="check-circle" colors={colors} /> :
+          {resultsQ.isLoading ? <LoadingState /> :
+           resultsQ.isError ? <ErrorState message={resultsQ.error?.message} onRetry={() => { resultsQ.refetch(); }} /> :
+           results.length === 0 ? <EmptyState title="No scan results yet." icon="check-circle" /> :
            results.map((result) => (
             <RowCard key={result.id} colors={colors}>
               <View>
@@ -1157,11 +1160,11 @@ function AuthProvidersTab({
         refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={query.refetch} />}
       >
         {query.isLoading ? (
-          <LoadingState colors={colors} />
+          <LoadingState />
         ) : query.isError ? (
-          <ErrorState error={query.error} onRetry={query.refetch} colors={colors} />
+          <ErrorState message={query.error?.message} onRetry={() => { query.refetch(); }} />
         ) : providers.length === 0 ? (
-          <EmptyState message="No auth providers configured." icon="lock" colors={colors} />
+          <EmptyState title="No auth providers configured." icon="lock" />
         ) : (
           providers.map((provider) => (
             <RowCard key={provider.id} colors={colors}>
@@ -1215,6 +1218,72 @@ function AuthProvidersTab({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+
+
+// ─── System Tab ─────────────────────────────────────────────────────────────
+
+function SystemTab({
+  colors,
+  apiCall,
+}: {
+  colors: ReturnType<typeof useColors>;
+  apiCall: <T>(fn: (c: any) => Promise<T>) => Promise<T>;
+}) {
+  const healthQ = useQuery({
+    queryKey: ["admin-health"],
+    queryFn: () => apiCall((c) => getAdminHealth(c)),
+  });
+
+  const settingsQ = useQuery({
+    queryKey: ["admin-settings"],
+    queryFn: () => apiCall((c) => getSettings(c.baseUrl)),
+  });
+
+  const publicHealthQ = useQuery({
+    queryKey: ["public-health"],
+    queryFn: () => apiCall((c) => getHealth(c.baseUrl)),
+  });
+
+  const isLoading = healthQ.isLoading || settingsQ.isLoading || publicHealthQ.isLoading;
+
+  if (isLoading) return <LoadingState />;
+
+  const settings = settingsQ.data as BaserowSettings;
+  const health = healthQ.data as any;
+
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      <SectionHeader title="Instance Health" colors={colors} />
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.cardRow}>
+          <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>Status</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#10b981" }} />
+            <Text style={[styles.cardValue, { color: colors.foreground }]}>Healthy</Text>
+          </View>
+        </View>
+        {health && Object.entries(health).map(([key, val]) => (
+          <View key={key} style={styles.cardRow}>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>{key.replace(/_/g, " ")}</Text>
+            <Text style={[styles.cardValue, { color: colors.foreground }]}>{String(val)}</Text>
+          </View>
+        ))}
+      </View>
+
+      <SectionHeader title="Instance Settings" colors={colors} style={{ marginTop: 24 }} />
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {settings && Object.entries(settings).map(([key, val]) => (
+          <View key={key} style={styles.cardRow}>
+            <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>{key.replace(/_/g, " ")}</Text>
+            <Text style={[styles.cardValue, { color: colors.foreground }]}>
+              {typeof val === "boolean" ? (val ? "Yes" : "No") : String(val)}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", icon: "bar-chart-2" as const },
@@ -1285,6 +1354,7 @@ export default function AdminScreen() {
         {activeTab === "audit" && <AuditLogTab colors={colors} apiCall={apiCall} />}
         {activeTab === "scanner" && <DataScannerTab colors={colors} apiCall={apiCall} />}
         {activeTab === "auth" && <AuthProvidersTab colors={colors} apiCall={apiCall} />}
+        {activeTab === "system" && <SystemTab colors={colors} apiCall={apiCall} />}
       </View>
     </>
   );
@@ -1482,6 +1552,24 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderTopWidth: 1,
+  },
+  card: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardLabel: {
+    fontSize: 14,
+  },
+  cardValue: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   fieldLabel: {
     fontSize: 12,
