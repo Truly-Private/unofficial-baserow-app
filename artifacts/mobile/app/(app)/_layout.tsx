@@ -50,6 +50,7 @@ export default function AppLayout() {
         name="row/[tableId]/new"
         options={{ title: "New row", presentation: "card" }}
       />
+      <Stack.Screen name="reminders" options={{ title: "Reminders" }} />
     </Stack>
   );
 }

@@ -18,7 +18,7 @@ import {
 import { FileFieldInput } from "@/components/FileFieldInput";
 import { LinkRowFieldInput } from "@/components/LinkRowFieldInput";
 import { useColors } from "@/hooks/useColors";
-import { useReminders } from "@/hooks/useReminders";
+import { useRowReminder } from "@/hooks/useReminders";
 import {
   dateToBaserowString,
   isEditable,
@@ -417,7 +417,7 @@ function ReminderButton({
   reminderKey: string;
 }) {
   const colors = useColors();
-  const { hasReminder, saveReminder } = useReminders(reminderKey);
+  const { hasReminder, saveReminder } = useRowReminder(reminderKey);
 
   return (
     <Pressable
