@@ -35,6 +35,7 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
+  BaserowApiError,
   BaserowComment,
   createComment,
   deleteComment,
@@ -42,6 +43,27 @@ import {
   setRowCommentNotificationMode,
   updateComment,
 } from "@/lib/baserow";
+
+function isPremiumFeatureError(err: unknown): boolean {
+  if (!(err instanceof BaserowApiError)) return false;
+  const data = err.data as { error?: string; detail?: string } | null;
+  const code = data?.error ?? "";
+  if (
+    code === "ERROR_FEATURE_NOT_AVAILABLE" ||
+    code === "ERROR_FEATURE_DISABLED" ||
+    code === "ERROR_NO_ACTIVE_PREMIUM_LICENSE_TO_USE_FEATURE"
+  ) {
+    return true;
+  }
+  const detail = (data?.detail ?? err.message ?? "").toLowerCase();
+  return (
+    detail.includes("does not have access to this feature") ||
+    detail.includes("does not have access to these features")
+  );
+}
+
+const PREMIUM_REQUIRED_MESSAGE =
+  "Row comments are a Baserow Premium feature. Upgrade your Baserow workspace plan to view and post comments on rows.";
 
 // ─── Notification Mode Modal ─────────────────────────────────────────────────
 
@@ -210,7 +232,15 @@ export default function RowCommentsScreen() {
       setNewComment("");
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
     },
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not post comment."),
+    onError: (e) =>
+      Alert.alert(
+        "Error",
+        isPremiumFeatureError(e)
+          ? PREMIUM_REQUIRED_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Could not post comment.",
+      ),
   });
 
   const editMutation = useMutation({
@@ -258,6 +288,7 @@ export default function RowCommentsScreen() {
 
   const comments = commentsQuery.data ?? [];
   const currentUserId = user?.id ?? 0;
+  const premiumRequired = isPremiumFeatureError(commentsQuery.error);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -266,16 +297,17 @@ export default function RowCommentsScreen() {
           title: "Comments",
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
-          headerRight: () => (
-            <Pressable
-              onPress={() => setShowNotifSheet(true)}
-              hitSlop={8}
-              style={{ paddingHorizontal: 4 }}
-              testID="notification-mode-btn"
-            >
-              <Feather name={MODE_ICONS[notifMode]} size={18} color={colors.primary} />
-            </Pressable>
-          ),
+          headerRight: () =>
+            premiumRequired ? null : (
+              <Pressable
+                onPress={() => setShowNotifSheet(true)}
+                hitSlop={8}
+                style={{ paddingHorizontal: 4 }}
+                testID="notification-mode-btn"
+              >
+                <Feather name={MODE_ICONS[notifMode]} size={18} color={colors.primary} />
+              </Pressable>
+            ),
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={8} style={{ paddingHorizontal: 4 }} testID="back-btn">
               <Feather name="arrow-left" size={20} color={colors.foreground} />
@@ -296,11 +328,18 @@ export default function RowCommentsScreen() {
       {commentsQuery.isLoading ? (
         <LoadingState />
       ) : commentsQuery.isError ? (
-        <ErrorState
-          title="Could not load comments"
-          message={commentsQuery.error instanceof Error ? commentsQuery.error.message : undefined}
-          onRetry={() => commentsQuery.refetch()}
-        />
+        isPremiumFeatureError(commentsQuery.error) ? (
+          <ErrorState
+            title="Comments unavailable"
+            message={PREMIUM_REQUIRED_MESSAGE}
+          />
+        ) : (
+          <ErrorState
+            title="Could not load comments"
+            message={commentsQuery.error instanceof Error ? commentsQuery.error.message : undefined}
+            onRetry={() => commentsQuery.refetch()}
+          />
+        )
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -331,6 +370,7 @@ export default function RowCommentsScreen() {
       )}
 
       {/* Input area */}
+      {premiumRequired ? null : (
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[styles.inputArea, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: bottomPad }]}>
           {editingComment ? (
@@ -389,6 +429,7 @@ export default function RowCommentsScreen() {
           )}
         </View>
       </KeyboardAvoidingView>
+      )}
 
       {/* Notification mode bottom sheet */}
       {showNotifSheet && (
