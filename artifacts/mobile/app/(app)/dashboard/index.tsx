@@ -64,7 +64,9 @@ export default function DashboardIndexScreen() {
   });
 
   const dashboards: DashboardEntry[] = (appsQuery.data ?? [])
-    .filter((app) => app.type === APP_TYPE_DASHBOARD)
+    .filter((app): app is BaserowApplication & { workspace: BaserowWorkspace } => 
+      app.type === APP_TYPE_DASHBOARD && app.workspace !== undefined
+    )
     .sort((a, b) => (a.name > b.name ? 1 : -1));
 
   // Group dashboards by workspace

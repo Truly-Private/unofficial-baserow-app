@@ -654,6 +654,26 @@ function EditFieldModal({
                 </TouchableOpacity>
               </View>
             </View>
+
+            <TouchableOpacity
+              style={[styles.permissionsBtn, { borderColor: colors.border }]}
+              onPress={() => {
+                onClose();
+                router.push({
+                  pathname: "/(app)/field-permissions",
+                  params: {
+                    fieldId: String(field.id),
+                    fieldName: field.name,
+                    workspaceId: String(creds.user.first_workspace_id || 1), // Fallback if workspace ID not available
+                  },
+                });
+              }}
+            >
+              <Feather name="shield" size={16} color={colors.primary} />
+              <Text style={[styles.permissionsBtnText, { color: colors.primary }]}>
+                Manage Field Permissions
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </View>
@@ -939,5 +959,19 @@ const styles = StyleSheet.create({
   },
   colorSwatchSelected: {
     borderColor: "#333",
+  },
+  permissionsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 24,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  permissionsBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

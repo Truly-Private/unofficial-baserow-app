@@ -13,7 +13,8 @@ export function EmptyState({
   icon = "inbox",
   title,
   description,
-}: EmptyStateProps) {
+  action,
+}: EmptyStateProps & { action?: React.ReactNode }) {
   const colors = useColors();
   return (
     <View style={styles.container}>
@@ -31,6 +32,7 @@ export function EmptyState({
           {description}
         </Text>
       ) : null}
+      {action && <View style={{ marginTop: 8 }}>{action}</View>}
     </View>
   );
 }

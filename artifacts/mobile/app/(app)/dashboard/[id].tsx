@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
+  createDashboardDataSource,
   createDashboardWidget,
   createApplicationSnapshot,
   deleteApplication,
@@ -24,6 +25,8 @@ import {
   deleteDashboardWidget,
   dispatchDashboardDataSource,
   duplicateApplicationAsync,
+  listApplications,
+  listDatabaseTables,
   listApplicationIntegrations,
   listApplicationSnapshots,
   listApplicationUserSources,
@@ -32,8 +35,10 @@ import {
   updateApplication,
   updateDashboardDataSource,
   updateDashboardWidget,
+  type BaserowApplication,
   type BaserowDashboardWidget,
   type BaserowDataSource,
+  type BaserowTable,
 } from "@/lib/baserow";
 
 type DashboardViewMode = "canvas" | "table" | "insights";
@@ -52,15 +57,13 @@ function dataSourceName(source: BaserowDataSource) {
   return source.name || `${source.type} data source #${source.id}`;
 }
 
+// Widget types confirmed from the live Baserow dashboard UI
 type WidgetTypeId =
   | "summary"
   | "bar_chart"
   | "line_chart"
   | "pie_chart"
-  | "doughnut_chart"
-  | "table"
-  | "text"
-  | "link";
+  | "doughnut_chart";
 
 type WidgetTypeOption = {
   id: WidgetTypeId;
@@ -82,50 +85,29 @@ const WIDGET_TYPES: WidgetTypeOption[] = [
     id: "bar_chart",
     label: "Bar chart",
     icon: "bar-chart-2",
-    description: "Compare grouped values across categories.",
+    description: "Compare grouped values across categories. (Premium)",
     needsSource: true,
   },
   {
     id: "line_chart",
     label: "Line chart",
     icon: "trending-up",
-    description: "Show a trend over time or ordered records.",
+    description: "Show a trend over time or ordered records. (Premium)",
     needsSource: true,
   },
   {
     id: "pie_chart",
     label: "Pie chart",
     icon: "pie-chart",
-    description: "Show proportions of a whole.",
+    description: "Show proportions of a whole. (Premium)",
     needsSource: true,
   },
   {
     id: "doughnut_chart",
     label: "Doughnut chart",
     icon: "circle",
-    description: "Show proportions with a compact KPI-style center.",
+    description: "Show proportions with a compact KPI-style center. (Premium)",
     needsSource: true,
-  },
-  {
-    id: "table",
-    label: "Table",
-    icon: "list",
-    description: "Render rows from a connected data source.",
-    needsSource: true,
-  },
-  {
-    id: "text",
-    label: "Text block",
-    icon: "type",
-    description: "Static dashboard note or instructions.",
-    needsSource: false,
-  },
-  {
-    id: "link",
-    label: "Link card",
-    icon: "link",
-    description: "A shortcut to an external resource.",
-    needsSource: false,
   },
 ];
 
@@ -172,7 +154,8 @@ type WidgetFormState = {
   type: WidgetTypeId;
   title: string;
   description: string;
-  dataSourceId: string;
+  dataSourceId: string; // existing dashboard data source
+  tableId: string;      // workspace table to create a new data source from
   row: string;
   col: string;
   width: string;
@@ -191,6 +174,7 @@ function blankWidgetForm(nextOrder: number, dataSources: BaserowDataSource[]): W
     title: "",
     description: "",
     dataSourceId: dataSources[0]?.id ? String(dataSources[0].id) : "",
+    tableId: "",
     row: String(nextOrder),
     col: "0",
     width: "4",
@@ -212,6 +196,7 @@ function formFromWidget(widget: BaserowDashboardWidget, dataSources: BaserowData
     title: labelForWidget(widget),
     description: textValue(widget.description),
     dataSourceId: String(rawSourceId || ""),
+    tableId: "",
     row: numberValue(widget.row, "0"),
     col: numberValue(widget.col, "0"),
     width: numberValue(widget.width, "4"),
@@ -233,7 +218,7 @@ function parseWholeNumber(value: string, label: string, min: number) {
   return parsed;
 }
 
-function buildWidgetPayload(form: WidgetFormState): Record<string, unknown> {
+function buildWidgetPayload(form: WidgetFormState, overrideDataSourceId?: number): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     type: form.type,
     title: form.title.trim(),
@@ -244,24 +229,15 @@ function buildWidgetPayload(form: WidgetFormState): Record<string, unknown> {
   };
   const description = form.description.trim();
   if (description) payload.description = description;
-  if (widgetNeedsSource(form.type)) {
-    payload.data_source_id = parseWholeNumber(form.dataSourceId, "Data source", 1);
-  }
+  // Use override (from newly created data source) or existing selection
+  const dsId = overrideDataSourceId ?? (form.dataSourceId ? parseWholeNumber(form.dataSourceId, "Data source", 1) : undefined);
+  if (dsId) payload.data_source_id = dsId;
   const aggregationType = form.aggregationType.trim();
   if (aggregationType) payload.aggregation_type = aggregationType;
   const fieldName = form.fieldName.trim();
   if (fieldName) payload.field_name = fieldName;
   const groupBy = form.groupBy.trim();
   if (groupBy) payload.group_by = groupBy;
-  const displayFields = form.displayFields
-    .split(",")
-    .map((field) => field.trim())
-    .filter(Boolean);
-  if (displayFields.length) payload.display_fields = displayFields;
-  const text = form.text.trim();
-  if (text) payload.text = text;
-  const linkUrl = form.linkUrl.trim();
-  if (linkUrl) payload.link_url = linkUrl;
   return payload;
 }
 
@@ -272,11 +248,9 @@ function validateWidgetForm(form: WidgetFormState) {
   } catch (error) {
     return error instanceof Error ? error.message : "Check the layout values.";
   }
-  if (widgetNeedsSource(form.type) && !form.dataSourceId) {
-    return "Pick a data source for this widget type.";
-  }
-  if (form.type === "link" && form.linkUrl.trim() && !/^https?:\/\//i.test(form.linkUrl.trim())) {
-    return "Link URL must start with http:// or https://.";
+  // Must have either an existing data source OR a table selected to create one from
+  if (!form.dataSourceId && !form.tableId) {
+    return "Pick a data source or table for this widget.";
   }
   return null;
 }
@@ -320,31 +294,83 @@ export default function DashboardScreen() {
     queryKey: ["dashboard", dashboardId, "application"],
     queryFn: () => apiCall((c) => getApplication(c, dashboardId)),
   });
+  // Optional: may 403 on non-admin users — never block the screen
   const userDashboardQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "user"],
     queryFn: () => apiCall((c) => getUserDashboard(c)),
+    retry: false,
+    throwOnError: false,
   });
+  // Optional: admin-only endpoint — silently skipped for regular users
   const adminDashboardQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "admin"],
     queryFn: () => apiCall((c) => getAdminDashboard(c)),
+    retry: false,
+    throwOnError: false,
   });
 
   const dataSourcesQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "dataSources"],
     queryFn: () => apiCall((c) => listDashboardDataSources(c, dashboardId)),
   });
+  // Optional metadata queries — silently degrade on permission errors
   const snapshotsQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "snapshots"],
     queryFn: () => apiCall((c) => listApplicationSnapshots(c, dashboardId)),
+    retry: false,
+    throwOnError: false,
   });
   const integrationsQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "integrations"],
     queryFn: () => apiCall((c) => listApplicationIntegrations(c, dashboardId)),
+    retry: false,
+    throwOnError: false,
   });
   const userSourcesQuery = useQuery({
     queryKey: ["dashboard", dashboardId, "userSources"],
     queryFn: () => apiCall((c) => listApplicationUserSources(c, dashboardId)),
+    retry: false,
+    throwOnError: false,
   });
+  // Workspace databases with their tables (for the widget source picker)
+  // Step 1: fetch all applications to get the list of databases
+  const applicationsQuery = useQuery({
+    queryKey: ["applications"],
+    queryFn: () => apiCall((c) => listApplications(c)),
+    retry: false,
+    throwOnError: false,
+  });
+  const rawDatabaseApps = (applicationsQuery.data ?? []).filter((a) => a.type === "database");
+
+  // Step 2: for each database, fetch tables via the dedicated endpoint.
+  // This is necessary because /api/applications/ may not populate the `tables` array.
+  const databaseTablesQuery = useQuery({
+    queryKey: ["databaseTables", rawDatabaseApps.map((a) => a.id).join(",")],
+    queryFn: async () => {
+      if (rawDatabaseApps.length === 0) return {} as Record<number, BaserowTable[]>;
+      const results = await Promise.allSettled(
+        rawDatabaseApps.map((db) => apiCall((c) => listDatabaseTables(c, db.id))),
+      );
+      const map: Record<number, BaserowTable[]> = {};
+      rawDatabaseApps.forEach((db, i) => {
+        const result = results[i];
+        // Use fetched tables, or fall back to tables already in the application object
+        map[db.id] = result.status === "fulfilled"
+          ? result.value
+          : (db.tables ?? []);
+      });
+      return map;
+    },
+    enabled: rawDatabaseApps.length > 0,
+    retry: false,
+    throwOnError: false,
+  });
+
+  // Combine: database apps enriched with their fetched tables
+  const databaseApps: BaserowApplication[] = rawDatabaseApps.map((db) => ({
+    ...db,
+    tables: databaseTablesQuery.data?.[db.id] ?? db.tables ?? [],
+  })).filter((db) => (db.tables?.length ?? 0) > 0);
 
   const dispatchMutation = useMutation({
     mutationFn: (source: BaserowDataSource) =>
@@ -373,10 +399,11 @@ export default function DashboardScreen() {
 
   const widgets = (widgetsQuery.data ?? []).slice().sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
   const dataSources = (dataSourcesQuery.data ?? []).slice().sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
-  const loading = widgetsQuery.isLoading || dataSourcesQuery.isLoading || userDashboardQuery.isLoading || adminDashboardQuery.isLoading || applicationQuery.isLoading || snapshotsQuery.isLoading || integrationsQuery.isLoading || userSourcesQuery.isLoading;
-  const errored = widgetsQuery.isError || dataSourcesQuery.isError || userDashboardQuery.isError || adminDashboardQuery.isError || applicationQuery.isError || snapshotsQuery.isError || integrationsQuery.isError || userSourcesQuery.isError;
-  const error = (widgetsQuery.error as Error | null) ?? (dataSourcesQuery.error as Error | null) ?? (userDashboardQuery.error as Error | null) ?? (adminDashboardQuery.error as Error | null) ?? (applicationQuery.error as Error | null) ?? (snapshotsQuery.error as Error | null) ?? (integrationsQuery.error as Error | null) ?? (userSourcesQuery.error as Error | null);
-  const refreshing = widgetsQuery.isRefetching || dataSourcesQuery.isRefetching || userDashboardQuery.isRefetching || adminDashboardQuery.isRefetching || applicationQuery.isRefetching || snapshotsQuery.isRefetching || integrationsQuery.isRefetching || userSourcesQuery.isRefetching;
+  // Only the core queries block the screen — optional/admin queries degrade silently
+  const loading = widgetsQuery.isLoading || dataSourcesQuery.isLoading || applicationQuery.isLoading;
+  const errored = widgetsQuery.isError || dataSourcesQuery.isError || applicationQuery.isError;
+  const error = (widgetsQuery.error as Error | null) ?? (dataSourcesQuery.error as Error | null) ?? (applicationQuery.error as Error | null);
+  const refreshing = widgetsQuery.isRefetching || dataSourcesQuery.isRefetching || applicationQuery.isRefetching || userDashboardQuery.isRefetching || adminDashboardQuery.isRefetching || snapshotsQuery.isRefetching || integrationsQuery.isRefetching || userSourcesQuery.isRefetching;
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16) + 24;
 
   const refresh = async () => {
@@ -389,6 +416,8 @@ export default function DashboardScreen() {
       snapshotsQuery.refetch(),
       integrationsQuery.refetch(),
       userSourcesQuery.refetch(),
+      applicationsQuery.refetch(),
+      databaseTablesQuery.refetch(),
     ]);
   };
 
@@ -768,16 +797,38 @@ export default function DashboardScreen() {
       <WidgetFormModal
         state={widgetForm}
         dataSources={dataSources}
+        databaseApps={databaseApps}
         loading={widgetActionMutation.isPending}
         onClose={() => setWidgetForm(null)}
         onChange={(form) => setWidgetForm((current) => current ? { ...current, form } : current)}
-        onSubmit={(payload) => {
+        onSubmit={(form) => {
           if (!widgetForm) return;
-          widgetActionMutation.mutate(() =>
-            widgetForm.mode === "edit" && widgetForm.widget
-              ? apiCall((c) => updateDashboardWidget(c, widgetForm.widget!.id, payload))
-              : apiCall((c) => createDashboardWidget(c, dashboardId, payload)),
-          );
+          widgetActionMutation.mutate(async () => {
+            if (widgetForm.mode === "edit" && widgetForm.widget) {
+              // Editing: use existing data source or create one if table changed
+              let dsId = form.dataSourceId ? Number(form.dataSourceId) : undefined;
+              if (form.tableId && !form.dataSourceId) {
+                const newDs = await apiCall((c) => createDashboardDataSource(c, dashboardId, {
+                  type: "local_baserow_grouped_rows",
+                  name: form.title.trim() || "Data source",
+                  table_id: Number(form.tableId),
+                }));
+                dsId = newDs.id;
+              }
+              return apiCall((c) => updateDashboardWidget(c, widgetForm.widget!.id, buildWidgetPayload(form, dsId)));
+            } else {
+              // Creating: if user picked a table, create data source first
+              if (form.tableId) {
+                const newDs = await apiCall((c) => createDashboardDataSource(c, dashboardId, {
+                  type: "local_baserow_grouped_rows",
+                  name: form.title.trim() || "Data source",
+                  table_id: Number(form.tableId),
+                }));
+                return apiCall((c) => createDashboardWidget(c, dashboardId, buildWidgetPayload(form, newDs.id)));
+              }
+              return apiCall((c) => createDashboardWidget(c, dashboardId, buildWidgetPayload(form)));
+            }
+          });
           setWidgetForm(null);
         }}
       />
@@ -990,6 +1041,7 @@ function WidgetPayloadPreview({ widget }: { widget: BaserowDashboardWidget }) {
 function WidgetFormModal({
   state,
   dataSources,
+  databaseApps,
   loading,
   onClose,
   onChange,
@@ -997,31 +1049,48 @@ function WidgetFormModal({
 }: {
   state: { mode: WidgetFormMode; widget: BaserowDashboardWidget | null; form: WidgetFormState } | null;
   dataSources: BaserowDataSource[];
+  databaseApps: BaserowApplication[];
   loading?: boolean;
   onClose: () => void;
   onChange: (form: WidgetFormState) => void;
-  onSubmit: (payload: Record<string, unknown>) => void;
+  onSubmit: (form: WidgetFormState) => void;
 }) {
   const colors = useColors();
   const [error, setError] = React.useState<string | null>(null);
+  const [sourcePickerOpen, setSourcePickerOpen] = React.useState(false);
+  const [sourceSearch, setSourceSearch] = React.useState("");
   const form = state?.form;
   const type = form ? widgetTypeOption(form.type) : WIDGET_TYPES[0];
 
-  React.useEffect(() => setError(null), [state]);
+  React.useEffect(() => { setError(null); setSourcePickerOpen(false); setSourceSearch(""); }, [state]);
 
   const update = (patch: Partial<WidgetFormState>) => {
     if (!form) return;
     const next = { ...form, ...patch };
-    if (patch.type && !widgetNeedsSource(patch.type)) {
-      next.dataSourceId = "";
-    } else if (patch.type && widgetNeedsSource(patch.type) && !next.dataSourceId && dataSources[0]?.id) {
-      next.dataSourceId = String(dataSources[0].id);
-    }
     onChange(next);
     setError(null);
   };
 
   if (!state || !form) return null;
+
+  // Derive a human-readable label for the current selection
+  const selectedTable = databaseApps.flatMap((db) => db.tables ?? []).find((t) => String(t.id) === form.tableId);
+  const selectedSource = dataSources.find((s) => String(s.id) === form.dataSourceId);
+  const selectionLabel = selectedTable?.name ?? (selectedSource ? dataSourceName(selectedSource) : null);
+
+  // Filter databases and tables by search query
+  const searchLower = sourceSearch.toLowerCase().trim();
+  const filteredDbs = databaseApps
+    .map((db) => ({
+      db,
+      tables: (db.tables ?? []).filter(
+        (t) => !searchLower || t.name.toLowerCase().includes(searchLower) || db.name.toLowerCase().includes(searchLower),
+      ),
+    }))
+    .filter(({ tables }) => tables.length > 0);
+  const filteredExistingSources = searchLower
+    ? dataSources.filter((s) => dataSourceName(s).toLowerCase().includes(searchLower))
+    : dataSources;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -1055,33 +1124,125 @@ function WidgetFormModal({
             <FormInput label="Title" value={form.title} onChangeText={(title) => update({ title })} autoFocus />
             <FormInput label="Description" value={form.description} onChangeText={(description) => update({ description })} multiline />
 
-            {type.needsSource ? (
-              <View style={styles.formBlock}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Data source</Text>
-                {dataSources.length === 0 ? (
-                  <Text style={[styles.helperText, { color: colors.destructive }]}>Create a dashboard data source first, then return to connect this widget.</Text>
+            {/* ── Source picker ── */}
+            <View style={styles.formBlock}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Source</Text>
+
+              {/* Trigger */}
+              <Pressable
+                style={[styles.sourceTrigger, {
+                  borderColor: sourcePickerOpen ? colors.primary : colors.border,
+                  backgroundColor: colors.background,
+                }]}
+                onPress={() => { setSourcePickerOpen((v) => !v); setSourceSearch(""); }}
+              >
+                {selectionLabel ? (
+                  <>
+                    <Feather name="database" size={14} color={colors.primary} />
+                    <Text style={[styles.sourceTriggerText, { color: colors.foreground }]} numberOfLines={1}>
+                      {selectionLabel}
+                    </Text>
+                  </>
                 ) : (
-                  <View style={styles.sourceList}>
-                    {dataSources.map((source) => {
-                      const selected = String(source.id) === form.dataSourceId;
-                      return (
-                        <Pressable
-                          key={source.id}
-                          onPress={() => update({ dataSourceId: String(source.id) })}
-                          style={[styles.sourceOption, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.secondary : colors.background }]}
-                        >
-                          <Feather name={selected ? "check-circle" : "database"} size={16} color={selected ? colors.primary : colors.mutedForeground} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.typeTitle, { color: colors.foreground }]}>{dataSourceName(source)}</Text>
-                            <Text style={[styles.typeDescription, { color: colors.mutedForeground }]}>Type: {source.type}</Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <Text style={[styles.sourceTriggerText, { color: colors.mutedForeground }]}>Make a choice</Text>
                 )}
-              </View>
-            ) : null}
+                <Feather name={sourcePickerOpen ? "chevron-up" : "chevron-down"} size={14} color={colors.mutedForeground} />
+              </Pressable>
+
+              {/* Inline dropdown */}
+              {sourcePickerOpen && (
+                <View style={[styles.sourceDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {/* Search */}
+                  <View style={[styles.sourceSearchRow, { borderBottomColor: colors.border }]}>
+                    <Feather name="search" size={13} color={colors.mutedForeground} />
+                    <TextInput
+                      style={[styles.sourceSearchInput, { color: colors.foreground }]}
+                      value={sourceSearch}
+                      onChangeText={setSourceSearch}
+                      placeholder="Search tables"
+                      placeholderTextColor={colors.mutedForeground}
+                      autoFocus
+                    />
+                    {sourceSearch.length > 0 && (
+                      <Pressable onPress={() => setSourceSearch("")}>
+                        <Feather name="x" size={13} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  <ScrollView style={styles.sourceOptionScroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                    {/* Workspace databases → tables */}
+                    {filteredDbs.length > 0 && filteredDbs.map(({ db, tables }) => (
+                      <View key={db.id}>
+                        {/* Database group header */}
+                        <View style={[styles.sourceGroupHeader, { borderBottomColor: colors.border }]}>
+                          <Feather name="layers" size={11} color={colors.mutedForeground} />
+                          <Text style={[styles.sourceGroupLabel, { color: colors.mutedForeground }]}>
+                            {db.name} ({db.id})
+                          </Text>
+                        </View>
+                        {/* Tables in this database */}
+                        {tables.map((table) => {
+                          const selected = String(table.id) === form.tableId;
+                          return (
+                            <Pressable
+                              key={table.id}
+                              style={[styles.sourceOptionRow, selected && { backgroundColor: colors.secondary }]}
+                              onPress={() => {
+                                // Picking a table clears any existing dataSourceId
+                                update({ tableId: String(table.id), dataSourceId: "" });
+                                setSourcePickerOpen(false);
+                                setSourceSearch("");
+                              }}
+                            >
+                              <Feather name={selected ? "check" : "grid"} size={13} color={selected ? colors.primary : colors.mutedForeground} />
+                              <Text style={[styles.sourceOptionText, { color: selected ? colors.primary : colors.foreground }]} numberOfLines={1}>
+                                {table.name}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+
+                    {/* Existing dashboard data sources (secondary section) */}
+                    {filteredExistingSources.length > 0 && (
+                      <View>
+                        <View style={[styles.sourceGroupHeader, { borderBottomColor: colors.border }]}>
+                          <Feather name="database" size={11} color={colors.mutedForeground} />
+                          <Text style={[styles.sourceGroupLabel, { color: colors.mutedForeground }]}>Dashboard data sources</Text>
+                        </View>
+                        {filteredExistingSources.map((source) => {
+                          const selected = String(source.id) === form.dataSourceId;
+                          return (
+                            <Pressable
+                              key={source.id}
+                              style={[styles.sourceOptionRow, selected && { backgroundColor: colors.secondary }]}
+                              onPress={() => {
+                                // Picking an existing source clears tableId
+                                update({ dataSourceId: String(source.id), tableId: "" });
+                                setSourcePickerOpen(false);
+                                setSourceSearch("");
+                              }}
+                            >
+                              <Feather name={selected ? "check" : "link"} size={13} color={selected ? colors.primary : colors.mutedForeground} />
+                              <Text style={[styles.sourceOptionText, { color: selected ? colors.primary : colors.foreground }]} numberOfLines={1}>
+                                {dataSourceName(source)}
+                              </Text>
+                              <Text style={[styles.sourceOptionMeta, { color: colors.mutedForeground }]}>{source.type?.replace(/_/g, " ")}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {filteredDbs.length === 0 && filteredExistingSources.length === 0 && (
+                      <Text style={[styles.sourceNoResult, { color: colors.mutedForeground }]}>No results</Text>
+                    )}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
 
             <View style={styles.layoutGrid}>
               <FormInput label="Row" value={form.row} onChangeText={(row) => update({ row })} keyboardType="number-pad" />
@@ -1102,15 +1263,6 @@ function WidgetFormModal({
                 <FormInput label="Value field" value={form.fieldName} onChangeText={(fieldName) => update({ fieldName })} placeholder="Numeric field" />
               </>
             ) : null}
-            {form.type === "table" ? (
-              <FormInput label="Display fields" value={form.displayFields} onChangeText={(displayFields) => update({ displayFields })} placeholder="Comma-separated field names" />
-            ) : null}
-            {form.type === "text" ? (
-              <FormInput label="Text" value={form.text} onChangeText={(text) => update({ text })} multiline />
-            ) : null}
-            {form.type === "link" ? (
-              <FormInput label="Link URL" value={form.linkUrl} onChangeText={(linkUrl) => update({ linkUrl })} placeholder="https://…" autoCapitalize="none" />
-            ) : null}
           </ScrollView>
           {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
           <View style={styles.modalActions}>
@@ -1124,7 +1276,7 @@ function WidgetFormModal({
                   setError(validation);
                   return;
                 }
-                onSubmit(buildWidgetPayload(form));
+                onSubmit(form);
               }}
             />
           </View>
@@ -1262,4 +1414,65 @@ const styles = StyleSheet.create({
   sourceOption: { flexDirection: "row", gap: 10, borderWidth: 1, borderRadius: 14, padding: 12 },
   helperText: { fontSize: 13, lineHeight: 18, fontFamily: "Inter_500Medium" },
   errorText: { marginTop: 10, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  // Source picker
+  sourceTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    minHeight: 44,
+  },
+  sourceTriggerText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  sourceDropdown: {
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  sourceSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  sourceSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 2,
+  },
+  sourceOptionScroll: { maxHeight: 180 },
+  sourceOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sourceOptionText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  sourceOptionMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  sourceNoResult: { padding: 12, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptySourceBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+  },
+  emptySourceText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: "Inter_400Regular" },
+  sourceGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sourceGroupLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
 });

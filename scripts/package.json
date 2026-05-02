@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "api-audit": "tsx ./src/api-audit.ts",
+    "api-audit:section": "tsx ./src/api-audit.ts --section",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

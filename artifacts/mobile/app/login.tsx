@@ -2,7 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -185,6 +187,14 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
+          {baseUrl && (
+            <LoginOptionsSection
+              baseUrl={baseUrl}
+              colors={colors}
+              onSsoPress={(url) => Linking.openURL(url)}
+            />
+          )}
+
           {error ? (
             <View
               style={[
@@ -216,6 +226,60 @@ export default function LoginScreen() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function LoginOptionsSection({
+  baseUrl,
+  colors,
+  onSsoPress,
+}: {
+  baseUrl: string;
+  colors: ReturnType<typeof useColors>;
+  onSsoPress: (url: string) => void;
+}) {
+  const [options, setOptions] = useState<any>(null);
+
+  React.useEffect(() => {
+    async function fetchOptions() {
+      try {
+        const response = await fetch(`${baseUrl}/api/user/login-options/`);
+        if (response.ok) {
+          const data = await response.json();
+          setOptions(data);
+        }
+      } catch {
+        // Silent fail
+      }
+    }
+    if (baseUrl) fetchOptions();
+  }, [baseUrl]);
+
+  if (!options?.saml && !options?.oidc) return null;
+
+  return (
+    <View style={{ marginTop: 8, gap: 10 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontWeight: "600" }}>OR</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+      </View>
+
+      {options.saml && (
+        <Button
+          title="Sign in with SAML"
+          variant="outline"
+          onPress={() => onSsoPress(`${baseUrl}/api/user/saml/login/`)}
+        />
+      )}
+      {options.oidc && (
+        <Button
+          title="Sign in with OIDC"
+          variant="outline"
+          onPress={() => onSsoPress(`${baseUrl}/api/user/oidc/login/`)}
+        />
+      )}
     </View>
   );
 }

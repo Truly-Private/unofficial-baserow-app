@@ -194,6 +194,17 @@ export type BaserowFile = {
   uploaded_at?: string;
 };
 
+export type BaserowRowHistoryItem = {
+  id: string;
+  action_type: string;
+  user_id: number;
+  user_email: string;
+  user_first_name?: string;
+  timestamp: string;
+  before: Record<string, any>;
+  after: Record<string, any>;
+};
+
 export type BaserowRow = {
   id: number;
   order: string;
@@ -205,6 +216,78 @@ export type BaserowRowsResponse = {
   next: string | null;
   previous: string | null;
   results: BaserowRow[];
+};
+
+export type BaserowWebhook = {
+  id: number;
+  table_id: number;
+  url: string;
+  name: string;
+  active: boolean;
+  events: string[];
+  request_method: string;
+  headers: Record<string, string>;
+};
+
+export type BaserowAuditLogItem = {
+  id: number;
+  action_type: string;
+  user_id: number;
+  user_email: string;
+  user_first_name?: string;
+  timestamp: string;
+  workspace_id?: number;
+  workspace_name?: string;
+  application_id?: number;
+  application_name?: string;
+  table_id?: number;
+  table_name?: string;
+  row_id?: number;
+  ip_address?: string;
+};
+
+export type BaserowLicense = {
+  id: number;
+  license_key: string;
+  is_active: boolean;
+  is_valid: boolean;
+  last_check: string;
+  seats: number;
+  free_seats: number;
+  valid_from: string;
+  valid_until: string;
+  product_code: string;
+  company_name: string;
+  contact_name: string;
+  contact_email: string;
+};
+
+export type BaserowCoreWebhook = {
+  id: number;
+  uid: string;
+  url: string;
+  name: string;
+  active: boolean;
+  events: string[];
+  request_method: string;
+  headers: Record<string, string>;
+};
+
+export type BaserowViewDecoration = {
+  id: number;
+  view_id: number;
+  type: string;
+  value_provider_type: string;
+  value_provider_config: Record<string, any>;
+  order: number;
+};
+
+export type BaserowFilterGroup = {
+  id: number;
+  view: number;
+  filter_type: "AND" | "OR";
+  filters: BaserowViewFilter[];
+  filter_groups: BaserowFilterGroup[];
 };
 
 export type BaserowComment = {
@@ -474,6 +557,145 @@ export async function listApplications(
   });
 }
 
+export async function listDatabaseTables(
+  creds: BaserowCredentials,
+  databaseId: number,
+): Promise<BaserowTable[]> {
+  return request<BaserowTable[]>(
+    creds.baseUrl,
+    `/api/database/tables/database/${databaseId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Get data sync details.
+ * GET /api/database/data-sync/{data_sync_id}/
+ */
+export async function getDataSync(
+  creds: BaserowCredentials,
+  dataSyncId: number,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/database/data-sync/${dataSyncId}/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Update a data sync.
+ * PATCH /api/database/data-sync/{data_sync_id}/
+ */
+export async function updateDataSync(
+  creds: BaserowCredentials,
+  dataSyncId: number,
+  params: any,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/database/data-sync/${dataSyncId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Trigger an asynchronous data sync.
+ * POST /api/database/data-sync/{data_sync_id}/sync/async/
+ */
+export async function triggerDataSyncAsync(
+  creds: BaserowCredentials,
+  dataSyncId: number,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/database/data-sync/${dataSyncId}/sync/async/`, {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Get data sync periodic interval.
+ * GET /api/data-sync/{data_sync_id}/periodic-interval/
+ */
+export async function getDataSyncInterval(
+  creds: BaserowCredentials,
+  dataSyncId: number,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/data-sync/${dataSyncId}/periodic-interval/`, {
+    headers: authHeader(creds),
+  });
+}
+
+
+/**
+ * Update a database table.
+ * PATCH /api/database/tables/{table_id}/
+ */
+export async function updateTable(
+  creds: BaserowCredentials,
+  tableId: number,
+  params: { name: string },
+): Promise<BaserowTable> {
+  return request<BaserowTable>(creds.baseUrl, `/api/database/tables/${tableId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a database table.
+ * DELETE /api/database/tables/{table_id}/
+ */
+export async function deleteTable(
+  creds: BaserowCredentials,
+  tableId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/tables/${tableId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+
+export type RoleAssignment = {
+  id: number;
+  role: string;
+  scope_id: number;
+  scope_type: string;
+  subject_id: number;
+  subject_type: string;
+};
+
+/**
+ * List all role assignments for a table.
+ * GET /api/database/tables/{table_id}/role-assignments/
+ */
+export async function listTableRoleAssignments(
+  creds: BaserowCredentials,
+  tableId: number,
+): Promise<RoleAssignment[]> {
+  return request<RoleAssignment[]>(creds.baseUrl, `/api/database/tables/${tableId}/role-assignments/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new role assignment for a table.
+ * POST /api/database/tables/{table_id}/role-assignments/
+ */
+export async function createTableRoleAssignment(
+  creds: BaserowCredentials,
+  tableId: number,
+  params: { role: string; subject_id: number; subject_type: string },
+): Promise<RoleAssignment> {
+  return request<RoleAssignment>(creds.baseUrl, `/api/database/tables/${tableId}/role-assignments/`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+
+
 export async function listWorkspaces(
   creds: BaserowCredentials,
 ): Promise<BaserowWorkspace[]> {
@@ -490,6 +712,38 @@ export async function createWorkspace(
     method: "POST",
     headers: authHeader(creds),
     body: JSON.stringify(params),
+  });
+}
+
+/**
+ * List global notifications for the current user.
+ * GET /api/notifications/
+ */
+export async function listGlobalNotifications(
+  creds: BaserowCredentials,
+  params: { limit?: number; offset?: number } = {},
+): Promise<BaserowNotificationsResponse> {
+  const query = new URLSearchParams();
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.offset) query.set("offset", String(params.offset));
+
+  return request<BaserowNotificationsResponse>(
+    creds.baseUrl,
+    `/api/notifications/?${query.toString()}`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Mark all global notifications as read.
+ * PATCH /api/notifications/mark-all-as-read/
+ */
+export async function markAllGlobalNotificationsRead(
+  creds: BaserowCredentials,
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/notifications/mark-all-as-read/", {
+    method: "PATCH",
+    headers: authHeader(creds),
   });
 }
 
@@ -726,6 +980,69 @@ export async function createApplicationUserSource(
   );
 }
 
+/**
+ * Update a user source.
+ * PATCH /api/user-source/{user_source_id}/
+ */
+export async function updateUserSource(
+  creds: BaserowCredentials,
+  userSourceId: number,
+  params: any,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/user-source/${userSourceId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a user source.
+ * DELETE /api/user-source/{user_source_id}/
+ */
+export async function deleteUserSource(
+  creds: BaserowCredentials,
+  userSourceId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/user-source/${userSourceId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Move a user source.
+ * PATCH /api/user-source/{user_source_id}/move/
+ */
+export async function moveUserSource(
+  creds: BaserowCredentials,
+  userSourceId: number,
+  params: { before_id?: number },
+): Promise<any> {
+  return request(creds.baseUrl, `/api/user-source/${userSourceId}/move/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Authenticate against a user source to get a token.
+ * POST /api/user-source/{user_source_id}/token-auth
+ */
+export async function authenticateUserSource(
+  creds: BaserowCredentials,
+  userSourceId: number,
+  params: any,
+): Promise<any> {
+  return request(creds.baseUrl, `/api/user-source/${userSourceId}/token-auth`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+
 export async function listApplicationUserSourceUsers(
   creds: BaserowCredentials,
   applicationId: number,
@@ -772,6 +1089,31 @@ export async function createApplicationSnapshot(
     },
   );
 }
+
+export async function restoreSnapshot(
+  creds: BaserowCredentials,
+  snapshotId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/snapshots/${snapshotId}/restore/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+export async function deleteSnapshot(
+  creds: BaserowCredentials,
+  snapshotId: number,
+): Promise<void> {
+  return request<void>(creds.baseUrl, `/api/snapshots/${snapshotId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
 
 export async function createTable(
   creds: BaserowCredentials,
@@ -879,6 +1221,75 @@ export async function listFields(
   );
 }
 
+export type FieldPermission = {
+  id: number;
+  field_id: number;
+  role: string;
+  permissions: unknown;
+};
+
+/**
+ * List all permissions for a specific field.
+ * GET /api/database/fields/{field_id}/permissions/
+ */
+export async function listFieldPermissions(
+  creds: BaserowCredentials,
+  fieldId: number,
+): Promise<FieldPermission[]> {
+  return request<FieldPermission[]>(creds.baseUrl, `/api/database/fields/${fieldId}/permissions/`, {
+    headers: authHeader(creds),
+  });
+}
+
+
+/**
+ * List all rules for a specific table.
+ * GET /api/database/field-rules/{table_id}/
+ */
+export async function listFieldRules(
+  creds: BaserowCredentials,
+  tableId: number,
+): Promise<any[]> {
+  return request<any[]>(creds.baseUrl, `/api/database/field-rules/${tableId}/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new rule for a table.
+ * POST /api/database/field-rules/{table_id}/
+ */
+export async function createFieldRule(
+  creds: BaserowCredentials,
+  tableId: number,
+  params: any,
+): Promise<any> {
+  return request<any>(creds.baseUrl, `/api/database/field-rules/${tableId}/`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Update an existing rule.
+ * PUT /api/database/field-rules/{table_id}/rule/{rule_id}/
+ */
+export async function updateFieldRule(
+  creds: BaserowCredentials,
+  tableId: number,
+  ruleId: number,
+  params: any,
+): Promise<any> {
+  return request<any>(creds.baseUrl, `/api/database/field-rules/${tableId}/rule/${ruleId}/`, {
+    method: "PUT",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+
+
 /**
  * Create a new field in a table.
  */
@@ -960,6 +1371,37 @@ export async function listViews(
   );
 }
 
+/**
+ * Update a database table view.
+ * PATCH /api/database/views/{view_id}/
+ */
+export async function updateView(
+  creds: BaserowCredentials,
+  viewId: number,
+  params: { name?: string; filter_type?: string; filters_disabled?: boolean },
+): Promise<BaserowView> {
+  return request<BaserowView>(creds.baseUrl, `/api/database/views/${viewId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a database table view.
+ * DELETE /api/database/views/{view_id}/
+ */
+export async function deleteView(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/views/${viewId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+
 export async function listViewFilters(
   creds: BaserowCredentials,
   viewId: number,
@@ -981,6 +1423,126 @@ export async function listViewSortings(
     { headers: authHeader(creds) },
   );
 }
+
+/**
+ * Update a view filter.
+ * PATCH /api/database/views/filter/{view_filter_id}/
+ */
+export async function updateViewFilter(
+  creds: BaserowCredentials,
+  filterId: number,
+  params: { field?: number; type?: string; value?: string },
+): Promise<BaserowViewFilter> {
+  return request<BaserowViewFilter>(creds.baseUrl, `/api/database/views/filter/${filterId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a view filter.
+ * DELETE /api/database/views/filter/{view_filter_id}/
+ */
+export async function deleteViewFilter(
+  creds: BaserowCredentials,
+  filterId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/views/filter/${filterId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Update a view sort.
+ * PATCH /api/database/views/sort/{view_sort_id}/
+ */
+export async function updateViewSort(
+  creds: BaserowCredentials,
+  sortId: number,
+  params: { field?: number; order?: string },
+): Promise<BaserowViewSort> {
+  return request<BaserowViewSort>(creds.baseUrl, `/api/database/views/sort/${sortId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a view sort.
+ * DELETE /api/database/views/sort/{view_sort_id}/
+ */
+export async function deleteViewSort(
+  creds: BaserowCredentials,
+  sortId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/views/sort/${sortId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * List all groupings for a view.
+ * GET /api/database/views/{view_id}/group_bys/
+ */
+export async function listViewGroupings(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<any[]> {
+  return request<any[]>(creds.baseUrl, `/api/database/views/${viewId}/group_bys/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new grouping for a view.
+ * POST /api/database/views/{view_id}/group_bys/
+ */
+export async function createViewGrouping(
+  creds: BaserowCredentials,
+  viewId: number,
+  params: { field: number; order?: string },
+): Promise<any> {
+  return request<any>(creds.baseUrl, `/api/database/views/${viewId}/group_bys/`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Update an existing grouping.
+ * PATCH /api/database/views/group_by/{view_group_by_id}/
+ */
+export async function updateViewGrouping(
+  creds: BaserowCredentials,
+  groupingId: number,
+  params: { field?: number; order?: string },
+): Promise<any> {
+  return request<any>(creds.baseUrl, `/api/database/views/group_by/${groupingId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a grouping.
+ * DELETE /api/database/views/group_by/{view_group_by_id}/
+ */
+export async function deleteViewGrouping(
+  creds: BaserowCredentials,
+  groupingId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/views/group_by/${groupingId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
 
 export async function listRows(
   creds: BaserowCredentials,
@@ -1109,6 +1671,17 @@ export async function uploadUserFile(
   return (await res.json()) as BaserowFile;
 }
 
+export async function uploadFileViaUrl(
+  creds: BaserowCredentials,
+  url: string,
+): Promise<BaserowFile> {
+  return request<BaserowFile>(creds.baseUrl, "/api/user-files/upload-via-url/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify({ url }),
+  });
+}
+
 // ============================================================================
 // Dashboard API
 // ============================================================================
@@ -1174,6 +1747,22 @@ export async function listDashboardDataSources(
     creds.baseUrl,
     `/api/dashboard/${dashboardId}/data-sources/`,
     { headers: authHeader(creds) },
+  );
+}
+
+export async function createDashboardDataSource(
+  creds: BaserowCredentials,
+  dashboardId: number,
+  params: Record<string, unknown>,
+): Promise<BaserowDataSource> {
+  return request<BaserowDataSource>(
+    creds.baseUrl,
+    `/api/dashboard/${dashboardId}/data-sources/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
   );
 }
 
@@ -2273,6 +2862,24 @@ export type AssistantUIContext = {
   timezone?: string;
 };
 
+export async function listUserSessions(
+  creds: BaserowCredentials,
+): Promise<any[]> {
+  return request<any[]>(creds.baseUrl, "/api/user/sessions/", {
+    headers: authHeader(creds),
+  });
+}
+
+export async function deleteUserSession(
+  creds: BaserowCredentials,
+  sessionId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/user/sessions/${sessionId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
 /**
  * List all AI assistant chat sessions for a workspace.
  * Endpoint: GET /assistant/chat/?workspace_id={workspaceId}
@@ -2315,7 +2922,21 @@ export async function listAssistantMessages(
     const data = await res.json().catch(() => ({}));
     throw new BaserowApiError(res.status, data, data?.detail || "Failed to list messages");
   }
-  return res.json();
+  const response = await res.json();
+  if (Array.isArray(response)) {
+    return {
+      count: response.length,
+      next: null,
+      previous: null,
+      results: response,
+    };
+  }
+  return {
+    count: typeof response?.count === "number" ? response.count : (response?.results?.length ?? 0),
+    next: response?.next ?? null,
+    previous: response?.previous ?? null,
+    results: Array.isArray(response?.results) ? response.results : [],
+  };
 }
 
 /**
@@ -2362,15 +2983,53 @@ export async function sendAssistantMessageSimple(
   content: string,
   uiContext?: AssistantUIContext,
 ): Promise<{ id: number; content: string }> {
-  // Use the streaming response and collect the final message
   const stream = await sendAssistantMessage(creds, chatUuid, content, uiContext);
-  const reader = stream[Symbol.asyncIterator]();
-  let result = "";
-  let messageId: number | null = null;
+  const chunks: string[] = [];
+  const decoder = new TextDecoder();
+  const body = stream as unknown as ReadableStream<Uint8Array> | AsyncIterable<Uint8Array | string> | null;
 
-  // Note: In a real implementation, you'd parse SSE events here
-  // For now, this is a placeholder that returns the request status
-  return { id: 0, content: "Message sent" };
+  if (body && typeof (body as ReadableStream<Uint8Array>).getReader === "function") {
+    const reader = (body as ReadableStream<Uint8Array>).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(decoder.decode(value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+  } else if (body && typeof (body as AsyncIterable<Uint8Array | string>)[Symbol.asyncIterator] === "function") {
+    for await (const chunk of body as AsyncIterable<Uint8Array | string>) {
+      chunks.push(typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+  }
+
+  const raw = chunks.join("");
+  let messageId = 0;
+  const messageParts: string[] = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    try {
+      const event = JSON.parse(data);
+      if (typeof event.id === "number") messageId = event.id;
+      // Only collect content from ai/message events (not ai/reasoning or others)
+      if (event.type === "ai/message" || event.type === "ai/started") {
+        const text = event.content ?? event.message ?? event.text ?? event.delta ?? event.answer;
+        if (typeof text === "string" && event.type === "ai/message") messageParts.push(text);
+      } else if (!event.type) {
+        // Legacy fallback: no type field, treat as message content
+        const text = event.content ?? event.message ?? event.text ?? event.delta ?? event.answer;
+        if (typeof text === "string") messageParts.push(text);
+      }
+    } catch {
+      // Non-JSON lines: skip
+    }
+  }
+
+  const parsedContent = messageParts.join("").trim();
+  return { id: messageId, content: parsedContent || "Assistant response received." };
 }
 
 /**
@@ -2390,6 +3049,45 @@ export async function cancelAssistantMessage(
     throw new BaserowApiError(res.status, data, data?.detail || "Failed to cancel message");
   }
 }
+
+/**
+ * Cancel an AI assistant chat session.
+ * DELETE /assistant/chat/{chat_uuid}/cancel/
+ */
+export async function cancelAssistantSession(
+  creds: BaserowCredentials,
+  chatUuid: string,
+): Promise<void> {
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/${chatUuid}/cancel/`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to cancel session");
+  }
+}
+
+/**
+ * Post to cancel an AI assistant chat session.
+ * POST /assistant/chat/{chat_uuid}/cancel/
+ */
+export async function cancelAssistantSessionPost(
+  creds: BaserowCredentials,
+  chatUuid: string,
+): Promise<void> {
+  const url = `${creds.baseUrl.replace(/\/api$/, "")}/assistant/chat/${chatUuid}/cancel/`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `JWT ${creds.jwt}` },
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    throw new BaserowApiError(res.status, data, data?.detail || "Failed to cancel session");
+  }
+}
+
 
 /**
  * Submit feedback (thumbs up/down) for an AI assistant message.
@@ -2417,21 +3115,28 @@ export async function submitAssistantFeedback(
 
 /**
  * List comments for a specific row.
+ * GET /api/row_comments/{table_id}/{row_id}/
  */
 export async function listComments(
   creds: BaserowCredentials,
   tableId: number,
   rowId: number,
-): Promise<BaserowComment[]> {
-  return request<BaserowComment[]>(
+  params?: { limit?: number; offset?: number },
+): Promise<{ count: number; next: string | null; results: BaserowComment[] }> {
+  const query = new URLSearchParams();
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  if (params?.offset !== undefined) query.set("offset", String(params.offset));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<{ count: number; next: string | null; results: BaserowComment[] }>(
     creds.baseUrl,
-    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    `/api/row_comments/${tableId}/${rowId}/${suffix}`,
     { headers: authHeader(creds) }
   );
 }
 
 /**
  * Create a new comment on a row.
+ * POST /api/row_comments/{table_id}/{row_id}/
  */
 export async function createComment(
   creds: BaserowCredentials,
@@ -2441,7 +3146,7 @@ export async function createComment(
 ): Promise<BaserowComment> {
   return request<BaserowComment>(
     creds.baseUrl,
-    `/api/database/comments/table/${tableId}/row/${rowId}/`,
+    `/api/row_comments/${tableId}/${rowId}/`,
     {
       method: "POST",
       headers: authHeader(creds),
@@ -2452,15 +3157,17 @@ export async function createComment(
 
 /**
  * Update an existing comment.
+ * PATCH /api/row_comments/{table_id}/comment/{comment_id}/
  */
 export async function updateComment(
   creds: BaserowCredentials,
+  tableId: number,
   commentId: number,
   comment: string,
 ): Promise<BaserowComment> {
   return request<BaserowComment>(
     creds.baseUrl,
-    `/api/database/comments/${commentId}/`,
+    `/api/row_comments/${tableId}/comment/${commentId}/`,
     {
       method: "PATCH",
       headers: authHeader(creds),
@@ -2471,13 +3178,1955 @@ export async function updateComment(
 
 /**
  * Delete a comment.
+ * DELETE /api/row_comments/{table_id}/comment/{comment_id}/
  */
 export async function deleteComment(
   creds: BaserowCredentials,
+  tableId: number,
   commentId: number,
 ): Promise<void> {
-  await request(creds.baseUrl, `/api/database/comments/${commentId}/`, {
+  await request(creds.baseUrl, `/api/row_comments/${tableId}/comment/${commentId}/`, {
     method: "DELETE",
     headers: authHeader(creds),
   });
 }
+
+/**
+ * Set the notification mode for a row's comments.
+ * PUT /api/row_comments/{table_id}/{row_id}/notification-mode/
+ */
+export async function setRowCommentNotificationMode(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+  mode: "all" | "only_mentions" | "nothing",
+): Promise<void> {
+  await request(creds.baseUrl, `/api/row_comments/${tableId}/${rowId}/notification-mode/`, {
+    method: "PUT",
+    headers: authHeader(creds),
+    body: JSON.stringify({ mode }),
+  });
+}
+
+/**
+ * List the history of changes for a specific row.
+ * GET /api/database/rows/table/{table_id}/{row_id}/history/
+ */
+export async function listRowHistory(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowId: number,
+  params: { limit?: number; offset?: number } = {},
+): Promise<{ count: number; results: BaserowRowHistoryItem[] }> {
+  const query = new URLSearchParams();
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.offset) query.set("offset", String(params.offset));
+
+  return request<{ count: number; results: BaserowRowHistoryItem[] }>(
+    creds.baseUrl,
+    `/api/database/rows/table/${tableId}/${rowId}/history/?${query.toString()}`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * List the audit log for the current user's workspaces.
+ * GET /api/audit-log/
+ */
+export async function listAuditLog(
+  creds: BaserowCredentials,
+  params: {
+    limit?: number;
+    offset?: number;
+    workspace_id?: number;
+    user_id?: number;
+    action_type?: string;
+    from_timestamp?: string;
+    to_timestamp?: string;
+  } = {},
+): Promise<{ count: number; results: BaserowAuditLogItem[] }> {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined) query.set(k, String(v));
+  });
+
+  return request<{ count: number; results: BaserowAuditLogItem[] }>(
+    creds.baseUrl,
+    `/api/audit-log/?${query.toString()}`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * List the webhooks for a specific table.
+ * GET /api/database/webhooks/table/{table_id}/
+ */
+export async function listTableWebhooks(
+  creds: BaserowCredentials,
+  tableId: number,
+): Promise<BaserowWebhook[]> {
+  return request<BaserowWebhook[]>(
+    creds.baseUrl,
+    `/api/database/webhooks/table/${tableId}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Create a new webhook for a table.
+ * POST /api/database/webhooks/table/{table_id}/
+ */
+export async function createTableWebhook(
+  creds: BaserowCredentials,
+  tableId: number,
+  data: Partial<BaserowWebhook>,
+): Promise<BaserowWebhook> {
+  return request<BaserowWebhook>(
+    creds.baseUrl,
+    `/api/database/webhooks/table/${tableId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Update an existing webhook.
+ * PATCH /api/database/webhooks/{webhook_id}/
+ */
+export async function updateTableWebhook(
+  creds: BaserowCredentials,
+  webhookId: number,
+  data: Partial<BaserowWebhook>,
+): Promise<BaserowWebhook> {
+  return request<BaserowWebhook>(
+    creds.baseUrl,
+    `/api/database/webhooks/${webhookId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Delete a webhook.
+ * DELETE /api/database/webhooks/{webhook_id}/
+ */
+export async function deleteTableWebhook(
+  creds: BaserowCredentials,
+  webhookId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/database/webhooks/${webhookId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Test a webhook by sending a test call.
+ * POST /api/database/webhooks/table/{table_id}/test-call/
+ */
+export async function testTableWebhook(
+  creds: BaserowCredentials,
+  tableId: number,
+  webhookId: number,
+): Promise<any> {
+  return request(
+    creds.baseUrl,
+    `/api/database/webhooks/table/${tableId}/test-call/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ webhook_id: webhookId }),
+    }
+  );
+}
+
+/**
+ * List audit log users for the current user's workspaces.
+ * GET /api/audit-log/users/
+ */
+export async function listAuditLogUsers(
+  creds: BaserowCredentials,
+): Promise<{ id: number; email: string; first_name?: string }[]> {
+  return request<{ id: number; email: string; first_name?: string }[]>(
+    creds.baseUrl,
+    "/api/audit-log/users/",
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Get a core webhook by its UID.
+ * GET /api/webhooks/{webhook_uid}/
+ */
+export async function getCoreWebhook(
+  creds: BaserowCredentials,
+  webhookUid: string,
+): Promise<BaserowCoreWebhook> {
+  return request<BaserowCoreWebhook>(
+    creds.baseUrl,
+    `/api/webhooks/${webhookUid}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Update a core webhook.
+ * PATCH /api/webhooks/{webhook_uid}/
+ */
+export async function updateCoreWebhook(
+  creds: BaserowCredentials,
+  webhookUid: string,
+  data: Partial<BaserowCoreWebhook>,
+): Promise<BaserowCoreWebhook> {
+  return request<BaserowCoreWebhook>(
+    creds.baseUrl,
+    `/api/webhooks/${webhookUid}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Delete a core webhook.
+ * DELETE /api/webhooks/{webhook_uid}/
+ */
+export async function deleteCoreWebhook(
+  creds: BaserowCredentials,
+  webhookUid: string,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/webhooks/${webhookUid}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * List all admin licenses.
+ * GET /api/licenses/
+ */
+export async function listAdminLicenses(
+  creds: BaserowCredentials,
+): Promise<BaserowLicense[]> {
+  return request<BaserowLicense[]>(creds.baseUrl, "/api/licenses/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Register a new license.
+ * POST /api/licenses/
+ */
+export async function registerAdminLicense(
+  creds: BaserowCredentials,
+  licenseKey: string,
+): Promise<BaserowLicense> {
+  return request<BaserowLicense>(creds.baseUrl, "/api/licenses/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify({ license_key: licenseKey }),
+  });
+}
+
+/**
+ * Get a specific license.
+ * GET /api/licenses/{id}/
+ */
+export async function getAdminLicense(
+  creds: BaserowCredentials,
+  licenseId: number,
+): Promise<BaserowLicense> {
+  return request<BaserowLicense>(creds.baseUrl, `/api/licenses/${licenseId}/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Delete a license.
+ * DELETE /api/licenses/{id}/
+ */
+export async function deleteAdminLicense(
+  creds: BaserowCredentials,
+  licenseId: number,
+): Promise<void> {
+  await request(creds.baseUrl, `/api/licenses/${licenseId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Get the status of a database export job.
+ * GET /api/database/export/{job_id}/
+ */
+export async function getDatabaseExportJob(
+  creds: BaserowCredentials,
+  jobId: number,
+): Promise<BaserowJob> {
+  return request<BaserowJob>(
+    creds.baseUrl,
+    `/api/database/export/${jobId}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Get the field options for a specific view.
+ * GET /api/database/views/{view_id}/field-options/
+ */
+export async function getViewFieldOptions(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<Record<string, any>> {
+  return request<Record<string, any>>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/field-options/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Get a specific database token.
+ * GET /api/database/tokens/{token_id}/
+ */
+export async function getDatabaseToken(
+  creds: BaserowCredentials,
+  tokenId: number,
+): Promise<DatabaseToken> {
+  return request<DatabaseToken>(
+    creds.baseUrl,
+    `/api/database/tokens/${tokenId}/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Get row data for editing via a form view (using a row token).
+ * GET /api/database/views/form/{slug}/edit-row/{row_token}/
+ */
+export async function getFormViewEditRow(
+  baseUrl: string,
+  slug: string,
+  rowToken: string,
+): Promise<any> {
+  return request<any>(
+    baseUrl,
+    `/api/database/views/form/${slug}/edit-row/${rowToken}/`
+  );
+}
+
+/**
+ * Submit changes to a row via a form view (using a row token).
+ * PATCH /api/database/views/form/{slug}/edit-row/{row_token}/
+ */
+export async function updateFormViewEditRow(
+  baseUrl: string,
+  slug: string,
+  rowToken: string,
+  values: Record<string, unknown>,
+): Promise<any> {
+  return request<any>(
+    baseUrl,
+    `/api/database/views/form/${slug}/edit-row/${rowToken}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(values),
+    }
+  );
+}
+
+/**
+ * Create the initial workspace for a new user.
+ * POST /api/workspaces/create-initial-workspace/
+ */
+export async function createInitialWorkspace(
+  creds: BaserowCredentials,
+  name: string,
+): Promise<BaserowWorkspace> {
+  return request<BaserowWorkspace>(
+    creds.baseUrl,
+    "/api/workspaces/create-initial-workspace/",
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ name }),
+    }
+  );
+}
+
+/**
+ * Get available SSO/auth login options.
+ * GET /api/auth-provider/login-options/
+ */
+export async function getLoginOptions(
+  baseUrl: string,
+): Promise<any> {
+  return request<any>(baseUrl, "/api/auth-provider/login-options/");
+}
+
+/**
+ * Get the SAML login URL.
+ * GET /api/sso/saml/login-url/
+ */
+export async function getSamlLoginUrl(
+  baseUrl: string,
+  email: string,
+): Promise<{ url: string }> {
+  return request<{ url: string }>(
+    baseUrl,
+    `/api/sso/saml/login-url/?email=${encodeURIComponent(email)}`
+  );
+}
+
+/**
+ * Create multiple rows at once.
+ * POST /api/database/rows/table/{table_id}/batch/
+ */
+export async function createRowsBatch(
+  creds: BaserowCredentials,
+  tableId: number,
+  items: Record<string, unknown>[],
+): Promise<{ items: BaserowRow[] }> {
+  return request<{ items: BaserowRow[] }>(
+    creds.baseUrl,
+    `/api/database/rows/table/${tableId}/batch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ items }),
+    }
+  );
+}
+
+/**
+ * Update multiple rows at once.
+ * PATCH /api/database/rows/table/{table_id}/batch/
+ */
+export async function updateRowsBatch(
+  creds: BaserowCredentials,
+  tableId: number,
+  items: Array<{ id: number } & Record<string, unknown>>,
+): Promise<{ items: BaserowRow[] }> {
+  return request<{ items: BaserowRow[] }>(
+    creds.baseUrl,
+    `/api/database/rows/table/${tableId}/batch/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ items }),
+    }
+  );
+}
+
+/**
+ * Delete multiple rows at once.
+ * POST /api/database/rows/table/{table_id}/batch-delete/
+ */
+export async function deleteRowsBatch(
+  creds: BaserowCredentials,
+  tableId: number,
+  rowIds: number[],
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/database/rows/table/${tableId}/batch-delete/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ items: rowIds }),
+    }
+  );
+}
+
+/**
+ * List all decorations for a view.
+ * GET /api/database/views/{view_id}/decorations/
+ */
+export async function listViewDecorations(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<BaserowViewDecoration[]> {
+  return request<BaserowViewDecoration[]>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/decorations/`,
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Create a new decoration for a view.
+ * POST /api/database/views/{view_id}/decorations/
+ */
+export async function createViewDecoration(
+  creds: BaserowCredentials,
+  viewId: number,
+  data: Partial<BaserowViewDecoration>,
+): Promise<BaserowViewDecoration> {
+  return request<BaserowViewDecoration>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/decorations/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Create a filter group for a view.
+ * POST /api/database/views/{view_id}/filter-groups/
+ */
+export async function createFilterGroup(
+  creds: BaserowCredentials,
+  viewId: number,
+  data: { filter_type: "AND" | "OR" },
+): Promise<BaserowFilterGroup> {
+  return request<BaserowFilterGroup>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/filter-groups/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Duplicate an existing view.
+ * POST /api/database/views/{view_id}/duplicate/
+ */
+export async function duplicateView(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<BaserowView> {
+  return request<BaserowView>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/duplicate/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    }
+  );
+}
+
+/**
+ * Update field options for a specific view.
+ * PATCH /api/database/views/{view_id}/field-options/
+ */
+export async function updateViewFieldOptions(
+  creds: BaserowCredentials,
+  viewId: number,
+  fieldOptions: Record<string, any>,
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/field-options/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ field_options: fieldOptions }),
+    }
+  );
+}
+
+/**
+ * Remove a subject (user/team) from a team.
+ * DELETE /api/teams/{team_id}/subjects/{subject_id}/
+ */
+export async function removeTeamSubject(
+  creds: BaserowCredentials,
+  teamId: number,
+  subjectId: number,
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/teams/${teamId}/subjects/${subjectId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    }
+  );
+}
+
+/**
+ * List all global trash items for the current user.
+ * GET /api/trash/
+ */
+export async function listGlobalTrash(
+  creds: BaserowCredentials,
+): Promise<BaserowTrashItem[]> {
+  return request<BaserowTrashItem[]>(
+    creds.baseUrl,
+    "/api/trash/",
+    { headers: authHeader(creds) }
+  );
+}
+
+/**
+ * Rotate the public sharing slug for a view.
+ * POST /api/database/views/{view_id}/rotate-slug/
+ */
+export async function rotateViewSlug(
+  creds: BaserowCredentials,
+  viewId: number,
+): Promise<{ slug: string }> {
+  return request<{ slug: string }>(
+    creds.baseUrl,
+    `/api/database/views/${viewId}/rotate-slug/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    }
+  );
+}
+
+/**
+ * Update premium settings for a public view (e.g. password).
+ * PATCH /api/database/view/{slug}/premium/
+ */
+export async function updatePublicViewPremium(
+  creds: BaserowCredentials,
+  slug: string,
+  data: Record<string, any>,
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/database/view/${slug}/premium/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/**
+ * Update the periodic interval for a data sync.
+ * PATCH /api/data-sync/{data_sync_id}/periodic-interval/
+ */
+export async function updateDataSyncInterval(
+  creds: BaserowCredentials,
+  dataSyncId: number,
+  interval: string,
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/data-sync/${dataSyncId}/periodic-interval/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ interval }),
+    }
+  );
+}
+
+/**
+ * Order views within a table.
+ * POST /api/database/views/table/{table_id}/order/
+ */
+export async function orderViews(
+  creds: BaserowCredentials,
+  tableId: number,
+  viewIds: number[],
+): Promise<void> {
+  await request(
+    creds.baseUrl,
+    `/api/database/views/table/${tableId}/order/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ order: viewIds }),
+    }
+  );
+}
+
+// ============================================================================
+// ─── User / Account  (Sprint 2) ─────────────────────────────────────────────
+// ============================================================================
+
+export type WorkspaceMember = {
+  id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  permissions: string;
+  to_be_deleted?: boolean;
+  created?: string;
+};
+
+/**
+ * Register a new Baserow account.
+ * POST /api/user/
+ */
+export async function registerUser(
+  baseUrl: string,
+  params: {
+    name: string;
+    email: string;
+    password: string;
+    language?: string;
+    group_invitation_token?: string;
+  },
+): Promise<LoginResult> {
+  return request<LoginResult>(baseUrl, "/api/user/", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Update the authenticated user's profile.
+ * PATCH /api/user/account/
+ */
+export async function updateUserAccount(
+  creds: BaserowCredentials,
+  params: {
+    first_name?: string;
+    language?: string;
+    email_notification_frequency?: "instant" | "daily" | "weekly" | "never";
+  },
+): Promise<BaserowUser> {
+  return request<BaserowUser>(creds.baseUrl, "/api/user/account/", {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Send a confirmation email to change the user's email address.
+ * POST /api/user/send-change-email-confirmation/
+ */
+export async function sendChangeEmailConfirmation(
+  creds: BaserowCredentials,
+  params: { new_email: string; password?: string },
+): Promise<void> {
+  await request(creds.baseUrl, "/api/user/send-change-email-confirmation/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+// ============================================================================
+// ─── Two-Factor Authentication (Sprint 5+) ──────────────────────────────────
+// ============================================================================
+
+/**
+ * Get 2FA configuration status.
+ * GET /api/two-factor-auth/configuration/
+ */
+export async function get2FAConfiguration(
+  creds: BaserowCredentials,
+): Promise<any> {
+  return request(creds.baseUrl, "/api/two-factor-auth/configuration/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Configure a new 2FA method.
+ * POST /api/two-factor-auth/configuration/
+ */
+export async function configure2FA(
+  creds: BaserowCredentials,
+  params: { type: string; [key: string]: any },
+): Promise<any> {
+  return request(creds.baseUrl, "/api/two-factor-auth/configuration/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Disable 2FA.
+ * POST /api/two-factor-auth/disable/
+ */
+export async function disable2FA(
+  creds: BaserowCredentials,
+  params: { password?: string },
+): Promise<void> {
+  await request(creds.baseUrl, "/api/two-factor-auth/disable/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Verify 2FA token.
+ * POST /api/two-factor-auth/verify/
+ */
+export async function verify2FA(
+  creds: BaserowCredentials,
+  params: { token: string },
+): Promise<any> {
+  return request(creds.baseUrl, "/api/two-factor-auth/verify/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+
+/**
+ * Change the authenticated user's password.
+ * POST /api/user/change-password/
+ */
+export async function changePassword(
+  creds: BaserowCredentials,
+  params: { old_password: string; new_password: string },
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/user/change-password/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Request an email address change (sends confirmation email).
+ * POST /api/user/change-email/
+ */
+export async function requestEmailChange(
+  creds: BaserowCredentials,
+  params: { new_email: string; password: string },
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/user/change-email/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Send (re-send) the account verification email.
+ * POST /api/user/send-verify-email/
+ */
+export async function sendVerificationEmail(
+  creds: BaserowCredentials,
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/user/send-verify-email/", {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Verify the account email using the token from the confirmation email.
+ * POST /api/user/verify-email/
+ */
+export async function verifyEmail(
+  baseUrl: string,
+  token: string,
+): Promise<void> {
+  await request<void>(baseUrl, "/api/user/verify-email/", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+/**
+ * Request a password-reset email to be sent.
+ * POST /api/user/send-reset-password-email/
+ */
+export async function sendResetPasswordEmail(
+  baseUrl: string,
+  email: string,
+): Promise<void> {
+  await request<void>(baseUrl, "/api/user/send-reset-password-email/", {
+    method: "POST",
+    body: JSON.stringify({ email, base_url: baseUrl }),
+  });
+}
+
+/**
+ * Complete a password reset using the token from the reset email.
+ * POST /api/user/reset-password/
+ */
+export async function resetPassword(
+  baseUrl: string,
+  token: string,
+  password: string,
+): Promise<void> {
+  await request<void>(baseUrl, "/api/user/reset-password/", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+/**
+ * Invalidate the current JWT (logout on the API side).
+ * POST /api/user/token-blacklist/
+ */
+export async function blacklistToken(
+  baseUrl: string,
+  refreshToken: string,
+): Promise<void> {
+  await request<void>(baseUrl, "/api/user/token-blacklist/", {
+    method: "POST",
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+}
+
+/**
+ * Verify that a JWT token is still valid.
+ * POST /api/user/token-verify/
+ * Returns true if valid, false if expired/invalid.
+ */
+export async function verifyToken(
+  baseUrl: string,
+  token: string,
+): Promise<boolean> {
+  try {
+    await request<void>(baseUrl, "/api/user/token-verify/", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Schedule the authenticated user's account for deletion.
+ * POST /api/user/schedule-account-deletion/
+ */
+export async function scheduleAccountDeletion(
+  creds: BaserowCredentials,
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/user/schedule-account-deletion/", {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Undo the last user action.
+ * PATCH /api/user/undo/
+ */
+export async function undoAction(
+  creds: BaserowCredentials,
+  scopes?: string[],
+): Promise<unknown> {
+  return request<unknown>(creds.baseUrl, "/api/user/undo/", {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: scopes ? JSON.stringify({ scopes }) : undefined,
+  });
+}
+
+/**
+ * Redo the last undone action.
+ * PATCH /api/user/redo/
+ */
+export async function redoAction(
+  creds: BaserowCredentials,
+  scopes?: string[],
+): Promise<unknown> {
+  return request<unknown>(creds.baseUrl, "/api/user/redo/", {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: scopes ? JSON.stringify({ scopes }) : undefined,
+  });
+}
+
+// ============================================================================
+// ─── Workspace CRUD Gaps  (Sprint 2) ────────────────────────────────────────
+// ============================================================================
+
+/**
+ * Update a workspace's name.
+ * PATCH /api/workspaces/{workspace_id}/
+ */
+export async function updateWorkspace(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: { name: string },
+): Promise<BaserowWorkspace> {
+  return request<BaserowWorkspace>(
+    creds.baseUrl,
+    `/api/workspaces/${workspaceId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Permanently delete a workspace.
+ * DELETE /api/workspaces/{workspace_id}/
+ */
+export async function deleteWorkspace(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/workspaces/${workspaceId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Leave a workspace (removes the current user as a member).
+ * POST /api/workspaces/{workspace_id}/leave/
+ */
+export async function leaveWorkspace(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/workspaces/${workspaceId}/leave/`, {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Get the permission set for a workspace.
+ * GET /api/workspaces/{workspace_id}/permissions/
+ */
+export async function getWorkspacePermissions(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<unknown[]> {
+  return request<unknown[]>(
+    creds.baseUrl,
+    `/api/workspaces/${workspaceId}/permissions/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * List all members of a workspace.
+ * GET /api/workspaces/users/workspace/{workspace_id}/
+ */
+export async function listWorkspaceMembers(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<WorkspaceMember[]> {
+  return request<WorkspaceMember[]>(
+    creds.baseUrl,
+    `/api/workspaces/users/workspace/${workspaceId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Update a workspace member's role/permissions.
+ * PATCH /api/workspaces/users/{workspace_user_id}/
+ */
+export async function updateWorkspaceMember(
+  creds: BaserowCredentials,
+  workspaceUserId: number,
+  params: { permissions: string },
+): Promise<WorkspaceMember> {
+  return request<WorkspaceMember>(
+    creds.baseUrl,
+    `/api/workspaces/users/${workspaceUserId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Remove a user from a workspace.
+ * DELETE /api/workspaces/users/{workspace_user_id}/
+ */
+export async function removeWorkspaceMember(
+  creds: BaserowCredentials,
+  workspaceUserId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/workspaces/users/${workspaceUserId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+/**
+ * Reorder workspaces for the current user.
+ * POST /api/workspaces/order/
+ */
+export async function orderWorkspaces(
+  creds: BaserowCredentials,
+  workspaceIds: number[],
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/workspaces/order/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify({ workspaces: workspaceIds }),
+  });
+}
+
+// ============================================================================
+// ─── Workspace Invitations  (Sprint 3) ──────────────────────────────────────
+// ============================================================================
+
+export type WorkspaceInvitation = {
+  id: number;
+  workspace: { id: number; name: string };
+  email: string;
+  permissions: string;
+  message: string;
+  created_on: string;
+  invited_by: { id: number; name: string };
+  email_exists: boolean;
+};
+
+/**
+ * List pending invitations for a workspace.
+ * GET /api/workspaces/invitations/workspace/{workspace_id}/
+ */
+export async function listWorkspaceInvitations(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<WorkspaceInvitation[]> {
+  return request<WorkspaceInvitation[]>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/workspace/${workspaceId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Create a new workspace invitation (sends email).
+ * POST /api/workspaces/invitations/workspace/{workspace_id}/
+ */
+export async function createWorkspaceInvitation(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: { email: string; permissions: string; message?: string },
+): Promise<WorkspaceInvitation> {
+  return request<WorkspaceInvitation>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/workspace/${workspaceId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Get a single invitation.
+ * GET /api/workspaces/invitations/{invitation_id}/
+ */
+export async function getWorkspaceInvitation(
+  creds: BaserowCredentials,
+  invitationId: number,
+): Promise<WorkspaceInvitation> {
+  return request<WorkspaceInvitation>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/${invitationId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Update an invitation (change permissions level).
+ * PATCH /api/workspaces/invitations/{invitation_id}/
+ */
+export async function updateWorkspaceInvitation(
+  creds: BaserowCredentials,
+  invitationId: number,
+  params: { permissions?: string },
+): Promise<WorkspaceInvitation> {
+  return request<WorkspaceInvitation>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/${invitationId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Delete / revoke a pending invitation.
+ * DELETE /api/workspaces/invitations/{invitation_id}/
+ */
+export async function deleteWorkspaceInvitation(
+  creds: BaserowCredentials,
+  invitationId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/${invitationId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+/**
+ * Get an invitation by token (public — no auth required).
+ * GET /api/workspaces/invitations/token/{token}/
+ */
+export async function getWorkspaceInvitationByToken(
+  baseUrl: string,
+  token: string,
+): Promise<WorkspaceInvitation> {
+  return request<WorkspaceInvitation>(
+    baseUrl,
+    `/api/workspaces/invitations/token/${token}/`,
+  );
+}
+
+/**
+ * Accept a workspace invitation.
+ * POST /api/workspaces/invitations/{invitation_id}/accept/
+ */
+export async function acceptWorkspaceInvitation(
+  creds: BaserowCredentials,
+  invitationId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/${invitationId}/accept/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+/**
+ * Reject a workspace invitation.
+ * POST /api/workspaces/invitations/{invitation_id}/reject/
+ */
+export async function rejectWorkspaceInvitation(
+  creds: BaserowCredentials,
+  invitationId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/workspaces/invitations/${invitationId}/reject/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+// ============================================================================
+// ─── Trash  (Sprint 4) ──────────────────────────────────────────────────────
+// ============================================================================
+
+export type TrashItem = {
+  id: number;
+  trash_item_type: "table" | "field" | "row" | "application" | "workspace" | string;
+  trash_item_id: number;
+  parent_trash_item_id?: number | null;
+  parent_trash_item_type?: string | null;
+  name: string;
+  names?: string[] | null;
+  trashed_at: string;
+  user_who_trashed?: { id: number; name: string } | null;
+  workspace_id: number;
+  application_id?: number | null;
+};
+
+export type TrashResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: TrashItem[];
+};
+
+/**
+ * List all trashed items visible to the user (can filter by workspace).
+ * GET /api/trash/
+ */
+export async function listTrash(
+  creds: BaserowCredentials,
+  params?: { workspace_id?: number; page?: number },
+): Promise<TrashResponse> {
+  const q = new URLSearchParams();
+  if (params?.workspace_id !== undefined) q.set("workspace_id", String(params.workspace_id));
+  if (params?.page !== undefined) q.set("page", String(params.page));
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  return request<TrashResponse>(creds.baseUrl, `/api/trash/${suffix}`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * List trashed items within a specific workspace.
+ * GET /api/trash/workspace/{workspace_id}/
+ */
+export async function listWorkspaceTrash(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<TrashResponse> {
+  return request<TrashResponse>(
+    creds.baseUrl,
+    `/api/trash/workspace/${workspaceId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Restore a trashed item.
+ * PATCH /api/trash/restore/
+ */
+export async function restoreTrashItem(
+  creds: BaserowCredentials,
+  params: {
+    trash_item_type: string;
+    trash_item_id: number;
+    parent_trash_item_id?: number;
+    parent_trash_item_type?: string;
+  },
+): Promise<void> {
+  await request<void>(creds.baseUrl, "/api/trash/restore/", {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Permanently delete all trashed items in a workspace.
+ * DELETE /api/trash/workspace/{workspace_id}/
+ */
+export async function emptyWorkspaceTrash(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<void> {
+  await request<void>(
+    creds.baseUrl,
+    `/api/trash/workspace/${workspaceId}/`,
+    {
+      method: "DELETE",
+      headers: authHeader(creds),
+    },
+  );
+}
+
+// ============================================================================
+// ─── Role Assignments  (Sprint 3) ───────────────────────────────────────────
+// ============================================================================
+
+export type RoleAssignmentDetailed = {
+  id?: number;
+  subject: { id: number; type: string };
+  role: string;
+  scope: { id: number; type: string };
+};
+
+/**
+ * List role assignments within a workspace.
+ * GET /api/role/{workspace_id}/
+ */
+export async function listRoleAssignments(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<RoleAssignmentDetailed[]> {
+  return request<RoleAssignmentDetailed[]>(
+    creds.baseUrl,
+    `/api/role/${workspaceId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Create or update a single role assignment.
+ * POST /api/role/{workspace_id}/
+ */
+export async function assignRole(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: {
+    subject_id: number;
+    subject_type: string;
+    role: string;
+    scope_id: number;
+    scope_type: string;
+  },
+): Promise<RoleAssignmentDetailed> {
+  return request<RoleAssignmentDetailed>(
+    creds.baseUrl,
+    `/api/role/${workspaceId}/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Batch-assign multiple roles at once.
+ * POST /api/role/{workspace_id}/batch/
+ */
+export async function batchAssignRoles(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  items: Array<{
+    subject_id: number;
+    subject_type: string;
+    role: string;
+    scope_id: number;
+    scope_type: string;
+  }>,
+): Promise<RoleAssignmentDetailed[]> {
+  return request<RoleAssignmentDetailed[]>(
+    creds.baseUrl,
+    `/api/role/${workspaceId}/batch/`,
+    {
+      method: "POST",
+      headers: authHeader(creds),
+      body: JSON.stringify({ items }),
+    },
+  );
+}
+
+// ============================================================================
+// ─── Field Permissions  (Sprint 5) ──────────────────────────────────────────
+// ============================================================================
+
+export type FieldPermissionDetailed = {
+  field_id: number;
+  role: string;
+  permission: "ALLOW" | "DENY";
+};
+
+/**
+ * Get permissions configured for a field.
+ * GET /api/field-permissions/{field_id}/
+ */
+export async function getFieldPermissions(
+  creds: BaserowCredentials,
+  fieldId: number,
+): Promise<FieldPermissionDetailed[]> {
+  return request<FieldPermissionDetailed[]>(
+    creds.baseUrl,
+    `/api/field-permissions/${fieldId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Update permissions for a field.
+ * PATCH /api/field-permissions/{field_id}/
+ */
+export async function updateFieldPermissions(
+  creds: BaserowCredentials,
+  fieldId: number,
+  permissions: FieldPermission[],
+): Promise<FieldPermission[]> {
+  return request<FieldPermission[]>(
+    creds.baseUrl,
+    `/api/field-permissions/${fieldId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify({ permissions }),
+    },
+  );
+}
+
+// ============================================================================
+// ─── MCP Endpoints  (Sprint 5) ──────────────────────────────────────────────
+// ============================================================================
+
+export type McpEndpoint = {
+  id: number;
+  name: string;
+  workspace_id: number;
+  token: string;
+  created: string;
+  updated: string;
+};
+
+/**
+ * List all MCP endpoints.
+ * GET /api/mcp/endpoints/
+ */
+export async function listMcpEndpoints(
+  creds: BaserowCredentials,
+): Promise<McpEndpoint[]> {
+  return request<McpEndpoint[]>(creds.baseUrl, "/api/mcp/endpoints/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new MCP endpoint.
+ * POST /api/mcp/endpoints/
+ */
+export async function createMcpEndpoint(
+  creds: BaserowCredentials,
+  params: { name: string; workspace_id: number },
+): Promise<McpEndpoint> {
+  return request<McpEndpoint>(creds.baseUrl, "/api/mcp/endpoints/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Get a single MCP endpoint.
+ * GET /api/mcp/endpoint/{endpoint_id}/
+ */
+export async function getMcpEndpoint(
+  creds: BaserowCredentials,
+  endpointId: number,
+): Promise<McpEndpoint> {
+  return request<McpEndpoint>(
+    creds.baseUrl,
+    `/api/mcp/endpoint/${endpointId}/`,
+    { headers: authHeader(creds) },
+  );
+}
+
+/**
+ * Update an MCP endpoint's name.
+ * PATCH /api/mcp/endpoint/{endpoint_id}/
+ */
+export async function updateMcpEndpoint(
+  creds: BaserowCredentials,
+  endpointId: number,
+  params: { name?: string },
+): Promise<McpEndpoint> {
+  return request<McpEndpoint>(
+    creds.baseUrl,
+    `/api/mcp/endpoint/${endpointId}/`,
+    {
+      method: "PATCH",
+      headers: authHeader(creds),
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+/**
+ * Delete an MCP endpoint.
+ * DELETE /api/mcp/endpoint/{endpoint_id}/
+ */
+export async function deleteMcpEndpoint(
+  creds: BaserowCredentials,
+  endpointId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/mcp/endpoint/${endpointId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+// ============================================================================
+// ─── Health & Settings  (Sprint 5) ──────────────────────────────────────────
+// ============================================================================
+
+export type BaserowSettings = {
+  instance_id: string;
+  is_first_login: boolean;
+  allow_new_user_signup: boolean;
+  allow_reset_password: boolean;
+  allow_global_view_sharing: boolean;
+  baserow_embedded_share_url?: string;
+  show_user_notifications?: boolean;
+};
+
+/**
+ * Get basic health status for the instance.
+ * GET /api/_health/
+ */
+export async function getHealth(baseUrl: string): Promise<{ status: string }> {
+  return request<{ status: string }>(baseUrl, "/api/_health/");
+}
+
+/**
+ * Get detailed 'full' health status.
+ * GET /api/_health/full/
+ */
+export async function getFullHealth(baseUrl: string): Promise<unknown> {
+  return request(baseUrl, "/api/_health/full/");
+}
+
+/**
+ * Check celery queue health.
+ * GET /api/_health/celery-queue/
+ */
+export async function getCeleryHealth(baseUrl: string): Promise<unknown> {
+  return request(baseUrl, "/api/_health/celery-queue/");
+}
+
+/**
+ * Test email configuration health.
+ * POST /api/_health/email/
+ */
+export async function testEmailHealth(baseUrl: string): Promise<unknown> {
+  return request(baseUrl, "/api/_health/email/", { method: "POST" });
+}
+
+/**
+ * Get public settings for the Baserow instance.
+ * GET /api/settings/
+ */
+export async function getSettings(baseUrl: string): Promise<BaserowSettings> {
+  return request<BaserowSettings>(baseUrl, "/api/settings/");
+}
+
+/**
+ * Get instance ID.
+ * GET /api/settings/instance-id/
+ */
+export async function getInstanceId(baseUrl: string): Promise<{ instance_id: string }> {
+  return request<{ instance_id: string }>(baseUrl, "/api/settings/instance-id/");
+}
+
+/**
+ * Update instance settings (requires staff/admin).
+ * PATCH /api/settings/update/
+ */
+export async function updateSettings(
+  creds: BaserowCredentials,
+  params: Partial<BaserowSettings>,
+): Promise<BaserowSettings> {
+  return request<BaserowSettings>(creds.baseUrl, "/api/settings/update/", {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+// ============================================================================
+// ─── Public Audit Log (Sprint 5+) ───────────────────────────────────────────
+// ============================================================================
+
+/**
+ * List public audit log entries.
+ * GET /api/audit-log/
+ */
+export async function listPublicAuditLog(
+  creds: BaserowCredentials,
+  params?: any,
+): Promise<any> {
+  const qs = new URLSearchParams(params).toString();
+  return request(creds.baseUrl, `/api/audit-log/?${qs}`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * List public audit log action types.
+ * GET /api/audit-log/action-types/
+ */
+export async function listPublicAuditLogActionTypes(
+  creds: BaserowCredentials,
+): Promise<any> {
+  return request(creds.baseUrl, "/api/audit-log/action-types/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Export public audit log.
+ * POST /api/audit-log/export/
+ */
+export async function exportPublicAuditLog(
+  creds: BaserowCredentials,
+  params: any,
+): Promise<any> {
+  return request(creds.baseUrl, "/api/audit-log/export/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+// ============================================================================
+// ─── Teams  (Sprint 5) ──────────────────────────────────────────────────────
+// ============================================================================
+
+export type BaserowTeam = {
+  id: number;
+  name: string;
+  workspace_id: number;
+  subject_count: number;
+};
+
+/**
+ * List all teams in a workspace.
+ * GET /api/teams/workspace/{workspace_id}/
+ */
+export async function listTeams(
+  creds: BaserowCredentials,
+  workspaceId: number,
+): Promise<BaserowTeam[]> {
+  return request<BaserowTeam[]>(creds.baseUrl, `/api/teams/workspace/${workspaceId}/`, {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new team.
+ * POST /api/teams/workspace/{workspace_id}/
+ */
+export async function createTeam(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: { name: string },
+): Promise<BaserowTeam> {
+  return request<BaserowTeam>(creds.baseUrl, `/api/teams/workspace/${workspaceId}/`, {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Update a team's name.
+ * PATCH /api/teams/{team_id}/
+ */
+export async function updateTeam(
+  creds: BaserowCredentials,
+  teamId: number,
+  params: { name: string },
+): Promise<BaserowTeam> {
+  return request<BaserowTeam>(creds.baseUrl, `/api/teams/${teamId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a team.
+ * DELETE /api/teams/{team_id}/
+ */
+export async function deleteTeam(
+  creds: BaserowCredentials,
+  teamId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/teams/${teamId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+// ============================================================================
+// ─── Database Tokens  (Sprint 5) ────────────────────────────────────────────
+// ============================================================================
+
+export type DatabaseToken = {
+  id: number;
+  name: string;
+  workspace_id: number;
+  key: string;
+  permissions: unknown;
+};
+
+/**
+ * List all database tokens.
+ * GET /api/database/tokens/
+ */
+export async function listDatabaseTokens(
+  creds: BaserowCredentials,
+): Promise<DatabaseToken[]> {
+  return request<DatabaseToken[]>(creds.baseUrl, "/api/database/tokens/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new database token.
+ * POST /api/database/tokens/
+ */
+export async function createDatabaseToken(
+  creds: BaserowCredentials,
+  params: { name: string; workspace_id: number },
+): Promise<DatabaseToken> {
+  return request<DatabaseToken>(creds.baseUrl, "/api/database/tokens/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Update a database token.
+ * PATCH /api/database/tokens/{token_id}/
+ */
+export async function updateDatabaseToken(
+  creds: BaserowCredentials,
+  tokenId: number,
+  params: { name?: string },
+): Promise<DatabaseToken> {
+  return request<DatabaseToken>(creds.baseUrl, `/api/database/tokens/${tokenId}/`, {
+    method: "PATCH",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Delete a database token.
+ * DELETE /api/database/tokens/{token_id}/
+ */
+export async function deleteDatabaseToken(
+  creds: BaserowCredentials,
+  tokenId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/database/tokens/${tokenId}/`, {
+    method: "DELETE",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Rotate a database token's key.
+ * POST /api/database/tokens/{token_id}/rotate-key/
+ */
+export async function rotateDatabaseTokenKey(
+  creds: BaserowCredentials,
+  tokenId: number,
+): Promise<{ key: string }> {
+  return request<{ key: string }>(creds.baseUrl, `/api/database/tokens/${tokenId}/rotate-key/`, {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+// ============================================================================
+// ─── Jobs & Search  (Sprint 5+) ─────────────────────────────────────────────
+// ============================================================================
+
+/**
+ * List all background jobs.
+ * GET /api/jobs/
+ */
+export async function listJobs(creds: BaserowCredentials): Promise<any[]> {
+  return request<any[]>(creds.baseUrl, "/api/jobs/", {
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Create a new background job.
+ * POST /api/jobs/
+ */
+export async function createJob(
+  creds: BaserowCredentials,
+  params: any,
+): Promise<any> {
+  return request<any>(creds.baseUrl, "/api/jobs/", {
+    method: "POST",
+    headers: authHeader(creds),
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Cancel a background job.
+ * POST /api/jobs/{job_id}/cancel/
+ */
+export async function cancelJob(
+  creds: BaserowCredentials,
+  jobId: number,
+): Promise<void> {
+  await request<void>(creds.baseUrl, `/api/jobs/${jobId}/cancel/`, {
+    method: "POST",
+    headers: authHeader(creds),
+  });
+}
+
+/**
+ * Search across a workspace.
+ * GET /api/search/workspace/{workspace_id}/
+ */
+export async function searchWorkspace(
+  creds: BaserowCredentials,
+  workspaceId: number,
+  params: { search: string; page?: number; size?: number },
+): Promise<any> {
+  const qs = new URLSearchParams(params as any).toString();
+  return request(creds.baseUrl, `/api/search/workspace/${workspaceId}/?${qs}`, {
+    headers: authHeader(creds),
+  });
+}
+
+// ============================================================================
+// ─── Public & Form Views  (Sprint 5+) ───────────────────────────────────────
+// ============================================================================
+
+/**
+ * Get public grid view rows.
+ * GET /api/database/views/grid/{slug}/public/rows/
+ */
+export async function getPublicGridViewRows(
+  baseUrl: string,
+  slug: string,
+  params?: any,
+): Promise<any> {
+  const qs = new URLSearchParams(params).toString();
+  return request(baseUrl, `/api/database/views/grid/${slug}/public/rows/?${qs}`);
+}
+
+/**
+ * Get public grid view aggregations.
+ * GET /api/database/views/grid/{slug}/public/aggregations/
+ */
+export async function getPublicGridViewAggregations(
+  baseUrl: string,
+  slug: string,
+  params?: any,
+): Promise<any> {
+  const qs = new URLSearchParams(params).toString();
+  return request(baseUrl, `/api/database/views/grid/${slug}/public/aggregations/?${qs}`);
+}
+
+/**
+ * Submit a form view.
+ * POST /api/database/views/form/{slug}/submit/
+ */
+export async function submitFormView(
+  baseUrl: string,
+  slug: string,
+  payload: any,
+): Promise<any> {
+  return request(baseUrl, `/api/database/views/form/${slug}/submit/`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Get form view details for submission.
+ * GET /api/database/views/form/{slug}/submit/
+ */
+export async function getFormViewForSubmit(
+  baseUrl: string,
+  slug: string,
+): Promise<any> {
+  return request(baseUrl, `/api/database/views/form/${slug}/submit/`);
+}
+
+
+
+

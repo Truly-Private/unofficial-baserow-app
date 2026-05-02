@@ -37,6 +37,12 @@ import {
   listTemplates,
   listWorkspaces,
   uploadImportResource,
+  updateWorkspace,
+  deleteWorkspace,
+  leaveWorkspace,
+  updateApplication,
+  duplicateApplicationAsync,
+  deleteApplication,
   type BaserowApplication,
   type BaserowApplicationType,
   type BaserowJob,
@@ -206,7 +212,9 @@ export default function WorkspacesScreen() {
 
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("Untitled Workspace");
-  const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceGroup | null>(null);
+  const [settingsApp, setSettingsApp] = useState<BaserowApplication | null>(null);
+  const [isRenamingApp, setIsRenamingApp] = useState(false);
+  const [renamedAppName, setRenamedAppName] = useState("");
   const [createAppDraft, setCreateAppDraft] =
     useState<CreateApplicationDraft | null>(null);
   const [templateWorkspace, setTemplateWorkspace] =
@@ -214,6 +222,9 @@ export default function WorkspacesScreen() {
   const [importWorkspace, setImportWorkspace] =
     useState<WorkspaceGroup | null>(null);
   const [importFile, setImportFile] = useState<ImportFileDraft | null>(null);
+  const [settingsWorkspace, setSettingsWorkspace] = useState<BaserowWorkspace | null>(null);
+  const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
+  const [renamedWorkspaceName, setRenamedWorkspaceName] = useState("");
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces", creds.baseUrl, creds.user.id],
@@ -296,6 +307,71 @@ export default function WorkspacesScreen() {
         error instanceof Error ? error.message : "Please try again.";
       Alert.alert("Could not create workspace", message);
     },
+  });
+
+
+  const updateWorkspaceMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      apiCall((c) => updateWorkspace(c, id, { name })),
+    onSuccess: async () => {
+      await invalidateWorkspaceData();
+      setSettingsWorkspace(null);
+      setIsRenamingWorkspace(false);
+    },
+    onError: (error) => {
+      Alert.alert("Error", error instanceof Error ? error.message : "Could not update workspace.");
+    },
+  });
+
+  const deleteWorkspaceMutation = useMutation({
+    mutationFn: (id: number) => apiCall((c) => deleteWorkspace(c, id)),
+    onSuccess: async () => {
+      await invalidateWorkspaceData();
+      setSettingsWorkspace(null);
+    },
+    onError: (error) => {
+      Alert.alert("Error", error instanceof Error ? error.message : "Could not delete workspace.");
+    },
+  });
+
+  const leaveWorkspaceMutation = useMutation({
+    mutationFn: (id: number) => apiCall((c) => leaveWorkspace(c, id)),
+    onSuccess: async () => {
+      await invalidateWorkspaceData();
+      setSettingsWorkspace(null);
+    },
+    onError: (error) => {
+      Alert.alert("Error", error instanceof Error ? error.message : "Could not leave workspace.");
+    },
+  });
+
+  const updateApplicationMutation = useMutation({
+    mutationFn: ({ appId, name }: { appId: number; name: string }) =>
+      apiCall((c) => updateApplication(c, appId, { name })),
+    onSuccess: async () => {
+      await invalidateWorkspaceData();
+      setIsRenamingApp(false);
+      setSettingsApp(null);
+    },
+    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not rename application."),
+  });
+
+  const duplicateApplicationMutation = useMutation({
+    mutationFn: (appId: number) => apiCall((c) => duplicateApplicationAsync(c, appId)),
+    onSuccess: async (job) => {
+      setSettingsApp(null);
+      await monitorJobUntilSettled(job.id);
+    },
+    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not duplicate application."),
+  });
+
+  const deleteApplicationMutation = useMutation({
+    mutationFn: (appId: number) => apiCall((c) => deleteApplication(c, appId)),
+    onSuccess: async () => {
+      await invalidateWorkspaceData();
+      setSettingsApp(null);
+    },
+    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not delete application."),
   });
 
   const createApplicationMutation = useMutation({
@@ -475,15 +551,18 @@ export default function WorkspacesScreen() {
     if (!menuWorkspace) return;
 
     if (option.action === "template") {
-      setTemplateWorkspace(menuWorkspace);
+      const wsId = menuWorkspace.id;
       setMenuWorkspace(null);
+      router.push({
+        pathname: "/(app)/templates",
+        params: { workspaceId: String(wsId) },
+      });
       return;
     }
 
     if (option.action === "import") {
       setImportWorkspace(menuWorkspace);
       setImportFile(null);
-      setMenuWorkspace(null);
       return;
     }
 
@@ -495,7 +574,6 @@ export default function WorkspacesScreen() {
       option,
       name: defaultAppName(option),
     });
-    setMenuWorkspace(null);
   };
 
   const handleApplicationPress = (app: BaserowApplication) => {
@@ -654,32 +732,88 @@ export default function WorkspacesScreen() {
                 >
                   {group.name}
                 </Text>
-                <Pressable
-                  onPress={() => openCreateMenu(group)}
-                  style={({ pressed }) => [
-                    styles.addNewButton,
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Pressable
+                    onPress={() => openCreateMenu(group)}
+                    style={({ pressed }) => [
+                      styles.addNewButton,
+                      {
+                        backgroundColor: colors.primary,
+                        opacity: pressed ? 0.88 : 1,
+                        borderRadius: colors.radius,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="plus"
+                      size={15}
+                      color={colors.primaryForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.addNewButtonText,
+                        { color: colors.primaryForeground },
+                      ]}
+                    >
+                      Add new...
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setSettingsWorkspace(group);
+                      setRenamedWorkspaceName(group.name);
+                    }}
+                    style={({ pressed }) => [
+                      styles.settingsIconButton,
+                      {
+                        backgroundColor: colors.muted,
+                        opacity: pressed ? 0.7 : 1,
+                        borderRadius: colors.radius,
+                        marginLeft: 8,
+                      },
+                    ]}
+                    testID={`workspace-settings-${group.id}`}
+                  >
+                    <Feather name="more-vertical" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/ai-chat/[workspaceId]",
+                    params: { workspaceId: String(group.id) },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.kumaCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                    opacity: pressed ? 0.72 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.kumaIcon,
                     {
                       backgroundColor: colors.primary,
-                      opacity: pressed ? 0.88 : 1,
                       borderRadius: colors.radius,
                     },
                   ]}
                 >
-                  <Feather
-                    name="plus"
-                    size={15}
-                    color={colors.primaryForeground}
-                  />
-                  <Text
-                    style={[
-                      styles.addNewButtonText,
-                      { color: colors.primaryForeground },
-                    ]}
-                  >
-                    Add new...
-                  </Text>
-                </Pressable>
-              </View>
+                  <Feather name="message-circle" size={18} color={colors.primaryForeground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.kumaTitle, { color: colors.foreground }]}>Ask Kuma AI</Text>
+                  <Text style={[styles.kumaSubtitle, { color: colors.mutedForeground }]}>Chat with Baserow's AI assistant for {group.name}</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+              </Pressable>
 
               {group.applications.length === 0 ? (
                 <View
@@ -788,11 +922,17 @@ export default function WorkspacesScreen() {
                             {meta.hint}
                           </Text>
                         </View>
-                        <Feather
-                          name="chevron-right"
-                          size={18}
-                          color={colors.mutedForeground}
-                        />
+                        <Pressable
+                          onPress={() => setSettingsApp(app)}
+                          hitSlop={10}
+                          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, padding: 4 })}
+                        >
+                          <Feather
+                            name="more-horizontal"
+                            size={18}
+                            color={colors.mutedForeground}
+                          />
+                        </Pressable>
                       </Pressable>
                     );
                   })}
@@ -864,15 +1004,169 @@ export default function WorkspacesScreen() {
             ? "Add database"
             : `Add ${createAppDraft?.option.label.toLowerCase() ?? "item"}`
         }
-        onSubmit={() => {
-          if (createAppDraft) createApplicationMutation.mutate(createAppDraft);
-        }}
-        loading={createApplicationMutation.isPending}
-        helperText={
-          createAppDraft
-            ? `This will be added to ${createAppDraft.workspaceName}.`
-            : undefined
+        onSubmit={() =>
+          createApplicationMutation.mutate({ ...createAppDraft!, name: workspaceName })
         }
+        loading={createApplicationMutation.isPending}
+      />
+
+      <WorkspaceSettingsModal
+        open={!!settingsWorkspace}
+        workspace={settingsWorkspace}
+        onClose={() => setSettingsWorkspace(null)}
+        onRename={() => {
+          setRenamedWorkspaceName(settingsWorkspace?.name ?? "");
+          setIsRenamingWorkspace(true);
+          setSettingsWorkspace(null);
+        }}
+        onDelete={() => {
+          if (!settingsWorkspace) return;
+          Alert.alert(
+            "Delete workspace?",
+            `Are you sure you want to delete "${settingsWorkspace.name}" and all its applications? This cannot be undone.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => deleteWorkspaceMutation.mutate(settingsWorkspace.id),
+              },
+            ],
+          );
+        }}
+        onLeave={() => {
+          if (!settingsWorkspace) return;
+          Alert.alert(
+            "Leave workspace?",
+            `Are you sure you want to leave "${settingsWorkspace.name}"?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Leave",
+                style: "destructive",
+                onPress: () => leaveWorkspaceMutation.mutate(settingsWorkspace.id),
+              },
+            ],
+          );
+        }}
+        onMembers={() => {
+          if (!settingsWorkspace) return;
+          router.push({
+            pathname: "/(app)/workspace-members",
+            params: {
+              workspaceId: String(settingsWorkspace.id),
+              workspaceName: settingsWorkspace.name,
+            },
+          });
+          setSettingsWorkspace(null);
+        }}
+        onTeams={() => {
+          if (!settingsWorkspace) return;
+          router.push({
+            pathname: "/(app)/workspace-teams",
+            params: {
+              workspaceId: String(settingsWorkspace.id),
+              workspaceName: settingsWorkspace.name,
+            },
+          });
+          setSettingsWorkspace(null);
+        }}
+        onTrash={() => {
+          if (!settingsWorkspace) return;
+          router.push({
+            pathname: "/(app)/trash",
+            params: { workspaceId: String(settingsWorkspace.id) },
+          });
+          setSettingsWorkspace(null);
+        }}
+        onAuditLog={() => {
+          if (!settingsWorkspace) return;
+          router.push({
+            pathname: "/(app)/audit-log",
+            params: { workspaceId: String(settingsWorkspace.id) },
+          });
+          setSettingsWorkspace(null);
+        }}
+      />
+
+      <ApplicationSettingsModal
+        open={!!settingsApp}
+        application={settingsApp}
+        onClose={() => setSettingsApp(null)}
+        onRename={() => {
+          setRenamedAppName(settingsApp?.name ?? "");
+          setIsRenamingApp(true);
+          setSettingsApp(null);
+        }}
+        onDuplicate={() => {
+          if (settingsApp) {
+            duplicateApplicationMutation.mutate(settingsApp.id);
+          }
+        }}
+        onDelete={() => {
+          if (!settingsApp) return;
+          Alert.alert(
+            "Delete database?",
+            `Are you sure you want to delete "${settingsApp.name}"? This cannot be undone.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => deleteApplicationMutation.mutate(settingsApp.id),
+              },
+            ],
+          );
+        }}
+        onSnapshots={() => {
+          if (!settingsApp) return;
+          router.push({
+            pathname: "/(app)/snapshots",
+            params: {
+              applicationId: String(settingsApp.id),
+              applicationName: settingsApp.name,
+            },
+          });
+          setSettingsApp(null);
+        }}
+      />
+
+      <NamePromptModal
+        visible={isRenamingWorkspace}
+        title="Rename workspace"
+        label="Name"
+        value={renamedWorkspaceName}
+        onChangeText={setRenamedWorkspaceName}
+        onClose={() => setIsRenamingWorkspace(false)}
+        actionLabel="Rename"
+        onSubmit={() => {
+          if (settingsWorkspace) {
+            updateWorkspaceMutation.mutate({
+              id: settingsWorkspace.id,
+              name: renamedWorkspaceName,
+            });
+          }
+        }}
+        loading={updateWorkspaceMutation.isPending}
+      />
+
+      <NamePromptModal
+        visible={isRenamingApp}
+        title="Rename database"
+        label="Name"
+        value={renamedAppName}
+        onChangeText={setRenamedAppName}
+        onClose={() => setIsRenamingApp(false)}
+        actionLabel="Rename"
+        onSubmit={() => {
+          if (settingsApp) {
+            updateApplicationMutation.mutate({
+              appId: settingsApp.id,
+              name: renamedAppName,
+            });
+          }
+        }}
+        loading={updateApplicationMutation.isPending}
       />
 
       <TemplatePickerModal
@@ -910,6 +1204,107 @@ export default function WorkspacesScreen() {
         }}
       />
     </View>
+  );
+}
+
+function ApplicationSettingsModal({
+  open,
+  application,
+  onClose,
+  onRename,
+  onDelete,
+  onSnapshots,
+}: {
+  open: boolean;
+  application: BaserowApplication | null;
+  onClose: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+  onSnapshots: () => void;
+}) {
+  const colors = useColors();
+
+  if (!application) return null;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={open}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.promptCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+              Database Settings
+            </Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.promptDivider,
+              { backgroundColor: colors.border },
+            ]}
+          />
+
+          <View style={{ gap: 8, paddingVertical: 8 }}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onRename}
+            >
+              <Feather name="edit-2" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Rename database</Text>
+            </Pressable>
+
+            {application.type === "database" && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.menuOption,
+                  { backgroundColor: pressed ? colors.muted : "transparent" },
+                ]}
+                onPress={onSnapshots}
+              >
+                <Feather name="camera" size={18} color={colors.foreground} />
+                <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Snapshots</Text>
+              </Pressable>
+            )}
+
+            <View style={[styles.promptDivider, { backgroundColor: colors.border, marginVertical: 4 }]} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDelete}
+            >
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete database</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1018,6 +1413,278 @@ function CreateMenuModal({
               </View>
             </Pressable>
           ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function WorkspaceSettingsModal({
+  open,
+  onClose,
+  workspace,
+  onRename,
+  onMembers,
+  onTeams,
+  onTrash,
+  onAuditLog,
+  onLeave,
+  onDelete,
+  colors,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workspace: BaserowWorkspace;
+  onRename: () => void;
+  onMembers: () => void;
+  onTeams: () => void;
+  onTrash: () => void;
+  onAuditLog: () => void;
+  onLeave: () => void;
+  onDelete: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={open}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.promptCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+              Workspace Settings
+            </Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.promptDivider,
+              { backgroundColor: colors.border },
+            ]}
+          />
+
+          <View style={{ gap: 8, paddingVertical: 8 }}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onRename}
+            >
+              <Feather name="edit-2" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Rename workspace</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={() => {
+                onClose();
+                router.push({
+                  pathname: "/(app)/workspace/[id]/permissions",
+                  params: { id: String(workspace.id), workspaceName: workspace.name },
+                });
+              }}
+            >
+              <Feather name="shield" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Permissions</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onMembers}
+            >
+              <Feather name="users" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Manage Members</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onTeams}
+            >
+              <Feather name="users" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Manage Teams</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onTrash}
+            >
+              <Feather name="trash-2" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>View Trash</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onAuditLog}
+            >
+              <Feather name="activity" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Audit Log</Text>
+            </Pressable>
+
+            <View style={[styles.promptDivider, { backgroundColor: colors.border, marginVertical: 4 }]} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onLeave}
+            >
+              <Feather name="log-out" size={18} color={colors.destructive} />
+              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Leave workspace</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDelete}
+            >
+              <Feather name="x-circle" size={18} color={colors.destructive} />
+              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete workspace</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function ApplicationSettingsModal({
+  open,
+  onClose,
+  application,
+  onRename,
+  onDuplicate,
+  onDelete,
+  colors,
+}: {
+  open: boolean;
+  onClose: () => void;
+  application: BaserowApplication | null;
+  onRename: () => void;
+  onDuplicate: () => void;
+  onSnapshots: () => void;
+  onDelete: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  if (!application) return null;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={open}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.promptCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+              {application.name} Settings
+            </Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <View style={[styles.promptDivider, { backgroundColor: colors.border }]} />
+
+          <View style={{ gap: 8, paddingVertical: 8 }}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onRename}
+            >
+              <Feather name="edit-2" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Rename</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDuplicate}
+            >
+              <Feather name="copy" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Duplicate</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onSnapshots}
+            >
+              <Feather name="clock" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Snapshots</Text>
+            </Pressable>
+
+            <View style={[styles.promptDivider, { backgroundColor: colors.border, marginVertical: 4 }]} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDelete}
+            >
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete</Text>
+            </Pressable>
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -1774,6 +2441,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
+  kumaCard: {
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  kumaIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kumaTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 16,
+  },
+  kumaSubtitle: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 18,
+  },
   dbRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2043,11 +2735,30 @@ const styles = StyleSheet.create({
   templateDetailBody: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     gap: 12,
   },
+  menuOptionText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 15,
+  },
+  menuOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 10,
+    gap: 12,
+  },
+  settingsIconButton: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+
   templateDetailIcon: {
     width: 72,
     height: 72,
@@ -2091,5 +2802,29 @@ const styles = StyleSheet.create({
   templateDetailCancelText: {
     fontFamily: "Inter_500Medium",
     fontSize: 14,
+  },
+  appCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 12,
+  },
+  appIconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  appName: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+  appType: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    marginTop: 2,
   },
 });

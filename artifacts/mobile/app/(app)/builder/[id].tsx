@@ -579,8 +579,8 @@ function BuilderThemeEditor({
 }: {
   builderId: number;
   builderName: string;
-  actionMutation: ReturnType<typeof useQuery> extends { mutate: infer M } ? M extends (cb: () => Promise<unknown>) => void ? ReturnType<M> : never : never;
-  apiCall: (fn: (c: ReturnType<typeof useAuth>["apiCall"] extends (x: infer F) => unknown ? F : never) => Promise<unknown>) => void;
+  actionMutation: any;
+  apiCall: any;
   colors: ReturnType<typeof useColors>;
 }) {
   const [themeDraft, setThemeDraft] = useState<Record<string, unknown>>({});
@@ -589,8 +589,8 @@ function BuilderThemeEditor({
   const handleSave = async (patch: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await (actionMutation as unknown as { mutate: (fn: () => Promise<unknown>) => void }).mutate(() =>
-        apiCall((c) => updateBuilderTheme(c, builderId, patch))
+      await (actionMutation as any).mutate(() =>
+        apiCall((c: any) => updateBuilderTheme(c, builderId, patch))
       );
       setThemeDraft((prev) => ({ ...prev, ...patch }));
     } finally {

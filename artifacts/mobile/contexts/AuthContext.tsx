@@ -153,6 +153,8 @@ async function loadStoredCreds(): Promise<BaserowCredentials | null> {
 type AuthContextValue = {
   status: "loading" | "signedOut" | "signedIn";
   creds: BaserowCredentials | null;
+  /** Convenience shortcut — same as creds?.user */
+  user: BaserowUser | null;
   signIn: (params: {
     baseUrl: string;
     email: string;
@@ -160,6 +162,8 @@ type AuthContextValue = {
   }) => Promise<void>;
   signOut: () => Promise<void>;
   apiCall: <T>(fn: (creds: BaserowCredentials) => Promise<T>) => Promise<T>;
+  /** Optimistically update local user object (e.g. after profile edit) */
+  updateUser: (user: Partial<BaserowUser>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -229,6 +233,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("signedOut");
   }, []);
 
+  const updateUser = useCallback((partial: Partial<BaserowUser>) => {
+    setCreds((prev) => {
+      if (!prev) return prev;
+      const merged = { ...prev, user: { ...prev.user, ...partial } };
+      credsRef.current = merged;
+      // Persist the updated user metadata
+      writeAuth(merged.baseUrl, merged.user, merged.jwt, merged.refreshToken).catch(() => {});
+      return merged;
+    });
+  }, []);
+
   const tryRefresh = useCallback(async (): Promise<string | null> => {
     if (refreshInflight.current) return refreshInflight.current;
     const current = credsRef.current;
@@ -287,8 +302,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, creds, signIn, signOut, apiCall }),
-    [status, creds, signIn, signOut, apiCall],
+    () => ({ status, creds, user: creds?.user ?? null, signIn, signOut, apiCall, updateUser }),
+    [status, creds, signIn, signOut, apiCall, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

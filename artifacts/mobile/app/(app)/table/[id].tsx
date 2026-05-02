@@ -178,10 +178,21 @@ export default function TableScreen() {
     setSelectionMode(false);
   }, [debouncedSearch, selectedViewId, manualOrderBy?.join(",")]);
 
+  const [activeUsers, setActiveUsers] = useState<any[]>([]);
+
   useBaserowRealtime(
     creds,
     Number.isFinite(tableId) ? { page: "table", tableId } : null,
     (message) => {
+      if (message.type === "page_user_added") {
+        setActiveUsers((prev) => [...prev, message.user]);
+        return;
+      }
+      if (message.type === "page_user_removed") {
+        setActiveUsers((prev) => prev.filter((u) => u.id !== message.user_id));
+        return;
+      }
+
       if (!message.type || !BASEROW_TABLE_EVENT_TYPES.has(message.type)) return;
       queryClient.invalidateQueries({
         queryKey: ["fields", creds.baseUrl, tableId],
@@ -465,6 +476,80 @@ export default function TableScreen() {
                   color={colors.foreground}
                 />
               </Pressable>
+              <View style={styles.headerRight}>
+              {activeUsers.length > 0 && (
+                <View style={styles.presenceWrap}>
+                  {activeUsers.slice(0, 3).map((u, i) => (
+                    <View
+                      key={u.id}
+                      style={[
+                        styles.presenceAvatar,
+                        {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.background,
+                          marginLeft: i === 0 ? 0 : -10,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.presenceInitial}>
+                        {(u.first_name || u.username || "?")[0].toUpperCase()}
+                      </Text>
+                    </View>
+                  ))}
+                  {activeUsers.length > 3 && (
+                    <View
+                      style={[
+                        styles.presenceAvatar,
+                        {
+                          backgroundColor: colors.muted,
+                          borderColor: colors.background,
+                          marginLeft: -10,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.presenceInitial, { color: colors.mutedForeground }]}>
+                        +{activeUsers.length - 3}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/table/[id]/permissions",
+                    params: { id: String(tableId), tableName },
+                  })
+                }
+                hitSlop={10}
+                style={{ paddingHorizontal: 4 }}
+              >
+                <Feather name="shield" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/table/[id]/export",
+                    params: { id: String(tableId), tableName },
+                  })
+                }
+                hitSlop={10}
+                style={{ paddingHorizontal: 4 }}
+              >
+                <Feather name="download" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/table/[id]/webhooks",
+                    params: { id: String(tableId), tableName },
+                  })
+                }
+                hitSlop={10}
+                style={{ paddingHorizontal: 4 }}
+              >
+                <Feather name="zap" size={20} color={colors.foreground} />
+              </Pressable>
               <Pressable
                 onPress={() => setFieldsPanelOpen(true)}
                 hitSlop={10}
@@ -564,6 +649,12 @@ export default function TableScreen() {
                   <Pressable
                     key={view.id}
                     onPress={() => setSelectedViewId(view.id)}
+                    onLongPress={() => {
+                      router.push({
+                        pathname: "/(app)/view/[id]/sharing",
+                        params: { id: String(view.id), viewName: view.name, tableId: String(tableId) },
+                      });
+                    }}
                     style={[
                       styles.pill,
                       {
@@ -1378,10 +1469,28 @@ function SortModal({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  headerActions: {
+  headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  presenceWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 4,
+  },
+  presenceAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  presenceInitial: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
   },
   searchBar: {
     flexDirection: "row",

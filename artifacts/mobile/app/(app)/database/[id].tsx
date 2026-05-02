@@ -135,7 +135,30 @@ export default function DatabaseScreen() {
               <Button
                 title="New table"
                 onPress={() => setCreateModalOpen(true)}
+                style={{ flex: 1, marginRight: 8 }}
               />
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/database/[id]/permissions",
+                    params: { id: String(databaseId), databaseName },
+                  })
+                }
+                style={[styles.iconButton, { backgroundColor: colors.muted, borderColor: colors.border }]}
+              >
+                <Feather name="shield" size={18} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/snapshots",
+                    params: { applicationId: String(databaseId), applicationName: databaseName },
+                  })
+                }
+                style={[styles.iconButton, { backgroundColor: colors.muted, borderColor: colors.border, marginLeft: 8 }]}
+              >
+                <Feather name="camera" size={18} color={colors.foreground} />
+              </Pressable>
             </View>
           </View>
 
@@ -324,7 +347,16 @@ const styles = StyleSheet.create({
   },
   headerButtonRow: {
     marginTop: 16,
-    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   emptyActionWrap: {
     paddingHorizontal: 20,

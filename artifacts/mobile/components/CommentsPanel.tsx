@@ -68,7 +68,8 @@ export function CommentsPanel({ tableId, rowId }: CommentsPanelProps) {
     );
   }
 
-  const comments = commentsQuery.data ?? [];
+  const commentsResponse = commentsQuery.data;
+  const comments = commentsResponse?.results ?? [];
 
   return (
     <KeyboardAvoidingView
@@ -139,6 +140,7 @@ export function CommentsPanel({ tableId, rowId }: CommentsPanelProps) {
           )}
         />
       )}
+
 
       {/* New comment input */}
       <View
