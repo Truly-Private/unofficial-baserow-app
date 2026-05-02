@@ -247,7 +247,7 @@ export default function WorkspaceMembersScreen() {
 
   const sendInviteMutation = useMutation({
     mutationFn: () =>
-      apiCall((c) => createWorkspaceInvitation(c, workspaceId, { email: inviteEmail.trim(), permissions: inviteRole })),
+      apiCall((c) => createWorkspaceInvitation(c, workspaceId, { email: inviteEmail.trim(), permissions: [inviteRole] })),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspace-invitations", workspaceId] });
       setInviteEmail("");

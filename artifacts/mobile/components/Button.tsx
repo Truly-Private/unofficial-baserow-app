@@ -10,7 +10,7 @@ import {
 
 import { useColors } from "@/hooks/useColors";
 
-type Variant = "primary" | "secondary" | "ghost" | "destructive";
+type Variant = "primary" | "secondary" | "ghost" | "destructive" | "outline";
 
 type ButtonProps = {
   title: string;
@@ -20,6 +20,7 @@ type ButtonProps = {
   loading?: boolean;
   style?: ViewStyle;
   testID?: string;
+  icon?: string;
 };
 
 export function Button({
@@ -52,7 +53,12 @@ export function Button({
       fg: colors.destructiveForeground,
       border: "transparent",
     },
-  }[variant];
+    outline: {
+      bg: "transparent",
+      fg: colors.foreground,
+      border: colors.border,
+    },
+  }[variant]!;
 
   return (
     <Pressable

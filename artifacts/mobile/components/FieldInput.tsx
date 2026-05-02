@@ -18,6 +18,7 @@ import {
 import { FileFieldInput } from "@/components/FileFieldInput";
 import { LinkRowFieldInput } from "@/components/LinkRowFieldInput";
 import { useColors } from "@/hooks/useColors";
+import { useRowReminder } from "@/hooks/useReminders";
 import {
   dateToBaserowString,
   isEditable,
@@ -29,9 +30,10 @@ type FieldInputProps = {
   field: BaserowField;
   value: unknown;
   onChange: (next: unknown) => void;
+  reminderKey?: string;
 };
 
-export function FieldInput({ field, value, onChange }: FieldInputProps) {
+export function FieldInput({ field, value, onChange, reminderKey }: FieldInputProps) {
   const colors = useColors();
   const editable = isEditable(field);
 
@@ -297,7 +299,7 @@ export function FieldInput({ field, value, onChange }: FieldInputProps) {
     return (
       <View style={styles.group}>
         {labelRow}
-        <DateField field={field} value={value} onChange={onChange} />
+        <DateField field={field} value={value} onChange={onChange} reminderKey={reminderKey} />
       </View>
     );
   }
@@ -376,9 +378,10 @@ type DateFieldProps = {
   field: BaserowField;
   value: unknown;
   onChange: (next: unknown) => void;
+  reminderKey?: string;
 };
 
-function DateField({ field, value, onChange }: DateFieldProps) {
+function DateField({ field, value, onChange, reminderKey }: DateFieldProps) {
   const colors = useColors();
   const includeTime = Boolean(field.date_include_time);
   const current = parseBaserowDate(value);
@@ -398,7 +401,47 @@ function DateField({ field, value, onChange }: DateFieldProps) {
       includeTime={includeTime}
       date={current}
       onChange={(d) => onChange(d ? dateToBaserowString(d, includeTime) : null)}
+      reminderKey={reminderKey}
+      fieldName={field.name}
     />
+  );
+}
+
+function ReminderButton({
+  fieldName,
+  date,
+  reminderKey,
+}: {
+  fieldName: string;
+  date: Date;
+  reminderKey: string;
+}) {
+  const colors = useColors();
+  const { hasReminder, saveReminder } = useRowReminder(reminderKey);
+
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        saveReminder(fieldName, date).catch(() => {});
+      }}
+      hitSlop={8}
+      style={[
+        styles.clearBtn,
+        {
+          backgroundColor: hasReminder ? colors.primary : colors.muted,
+          borderColor: hasReminder ? colors.primary : colors.border,
+          borderRadius: colors.radius,
+        },
+      ]}
+      testID="reminder-btn"
+    >
+      <Feather
+        name="bell"
+        size={16}
+        color={hasReminder ? colors.primaryForeground : colors.mutedForeground}
+      />
+    </Pressable>
   );
 }
 
@@ -406,10 +449,14 @@ function NativeDateInput({
   includeTime,
   date,
   onChange,
+  reminderKey,
+  fieldName,
 }: {
   includeTime: boolean;
   date: Date | null;
   onChange: (d: Date | null) => void;
+  reminderKey?: string;
+  fieldName?: string;
 }) {
   const colors = useColors();
   const [showDate, setShowDate] = useState(false);
@@ -487,6 +534,13 @@ function NativeDateInput({
           >
             <Feather name="x" size={16} color={colors.mutedForeground} />
           </Pressable>
+        ) : null}
+        {date && reminderKey && fieldName && Platform.OS === "ios" ? (
+          <ReminderButton
+            fieldName={fieldName}
+            date={date}
+            reminderKey={reminderKey}
+          />
         ) : null}
       </View>
 

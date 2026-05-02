@@ -10,6 +10,8 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth, useCreds } from "@/contexts/AuthContext";
@@ -439,6 +441,8 @@ function EditFieldModal({
   onDelete: () => void;
   loading: boolean;
 }) {
+  const colors = useColors();
+  const creds = useCreds();
   const [name, setName] = useState(field.name);
   const [options, setOptions] = useState<EditableOption[]>(
     (field.select_options ?? []).map((o) => ({

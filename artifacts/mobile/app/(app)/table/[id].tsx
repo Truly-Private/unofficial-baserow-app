@@ -566,6 +566,7 @@ export default function TableScreen() {
               >
                 <Feather name="plus" size={22} color={colors.primary} />
               </Pressable>
+              </View>
             </View>
           ),
         }}

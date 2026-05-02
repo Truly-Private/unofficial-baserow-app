@@ -4315,7 +4315,7 @@ export async function listWorkspaceInvitations(
 export async function createWorkspaceInvitation(
   creds: BaserowCredentials,
   workspaceId: number,
-  params: { email: string; permissions: string; message?: string },
+  params: { email: string; permissions: string | string[]; message?: string },
 ): Promise<WorkspaceInvitation> {
   return request<WorkspaceInvitation>(
     creds.baseUrl,
