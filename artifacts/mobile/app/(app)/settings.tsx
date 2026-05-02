@@ -279,8 +279,7 @@ export default function SettingsScreen() {
   // ─── Mutations ──────────────────────────────────────────────────────────────
 
   const updateNameMutation = useMutation({
-    mutationFn: (data?: Parameters<typeof updateUserAccount>[1]) =>
-      apiCall((c) => updateUserAccount(c, data ?? { first_name: firstName.trim() })),
+    mutationFn: () => apiCall((c) => updateUserAccount(c, { first_name: firstName.trim() })),
     onSuccess: (updated) => {
       updateUser?.({ ...creds.user, first_name: updated.first_name });
       queryClient.invalidateQueries({ queryKey: ["user"] });
@@ -465,7 +464,7 @@ export default function SettingsScreen() {
               label="Instant"
               value="instant"
               currentValue={creds.user.notification_email_frequency || "instant"}
-              onPress={() => updateNameMutation.mutate({ email_notification_frequency: "instant" })}
+              onPress={() => updateNameMutation.mutate({ notification_email_frequency: "instant" })}
               colors={colors}
               icon="zap"
             />
@@ -474,7 +473,7 @@ export default function SettingsScreen() {
               label="Daily Digest"
               value="daily"
               currentValue={creds.user.notification_email_frequency || "instant"}
-              onPress={() => updateNameMutation.mutate({ email_notification_frequency: "daily" })}
+              onPress={() => updateNameMutation.mutate({ notification_email_frequency: "daily" })}
               colors={colors}
               icon="calendar"
             />
@@ -483,7 +482,7 @@ export default function SettingsScreen() {
               label="Weekly Digest"
               value="weekly"
               currentValue={creds.user.notification_email_frequency || "instant"}
-              onPress={() => updateNameMutation.mutate({ email_notification_frequency: "weekly" })}
+              onPress={() => updateNameMutation.mutate({ notification_email_frequency: "weekly" })}
               colors={colors}
               icon="list"
             />
@@ -492,7 +491,7 @@ export default function SettingsScreen() {
               label="Never"
               value="never"
               currentValue={creds.user.notification_email_frequency || "instant"}
-              onPress={() => updateNameMutation.mutate({ email_notification_frequency: "never" })}
+              onPress={() => updateNameMutation.mutate({ notification_email_frequency: "never" })}
               colors={colors}
               icon="x-circle"
             />

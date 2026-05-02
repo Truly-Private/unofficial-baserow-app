@@ -41,7 +41,7 @@ export default function ViewSharingScreen() {
       // We need a way to get a single view's full details
       // For now we'll assume it's in the listViews cache or fetch it
       const response = await fetch(`${creds.baseUrl}/api/database/views/${viewId}/`, {
-        headers: { Authorization: `JWT ${creds.jwt}` },
+        headers: { Authorization: `JWT ${creds.token}` },
       });
       if (!response.ok) throw new Error("Failed to load view");
       return response.json();

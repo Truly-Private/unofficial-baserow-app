@@ -10,9 +10,6 @@ export type BaserowUser = {
   email: string;
   username?: string;
   first_name?: string;
-  language?: string;
-  notification_email_frequency?: string;
-  first_workspace_id?: number;
 };
 
 export type BaserowWorkspace = {
@@ -83,9 +80,6 @@ export type BaserowJob = {
   workspace_id?: number;
   resource?: BaserowImportResource;
   workspace?: BaserowWorkspace;
-  url?: string;
-  error?: string;
-  progress?: number;
   template?: BaserowTemplate;
 };
 
@@ -112,9 +106,6 @@ export type BaserowView = {
   type: BaserowViewType;
   filters_disabled?: boolean;
   public?: boolean;
-  public_view_slug?: string;
-  public_view_password?: string;
-  slug?: string;
 };
 
 export type BaserowViewFilter = {
@@ -448,16 +439,12 @@ export type BaserowApplicationSnapshot = {
   [key: string]: unknown;
 };
 
-export type Snapshot = BaserowApplicationSnapshot;
-
 export type AssistantChat = {
   id: string;
   uuid: string;
   workspace_id: number;
   created_at: string;
   updated_at: string;
-  title?: string;
-  created_on?: string;
 };
 
 export type AssistantMessage = {
@@ -473,10 +460,6 @@ export type AssistantMessagesResponse = {
   previous: string | null;
   results: AssistantMessage[];
 };
-
-export type BaserowAssistantChat = AssistantChat;
-export type BaserowAssistantMessage = AssistantMessage;
-export type BaserowTrashItem = TrashItem;
 
 export class BaserowApiError extends Error {
   status: number;
@@ -1093,12 +1076,9 @@ export async function listApplicationSnapshots(
   );
 }
 
-export const listSnapshots = listApplicationSnapshots;
-
 export async function createApplicationSnapshot(
   creds: BaserowCredentials,
   applicationId: number,
-  params?: { name?: string },
 ): Promise<BaserowApplicationSnapshot> {
   return request<BaserowApplicationSnapshot>(
     creds.baseUrl,
@@ -1106,12 +1086,9 @@ export async function createApplicationSnapshot(
     {
       method: "POST",
       headers: authHeader(creds),
-      body: params ? JSON.stringify(params) : undefined,
     },
   );
 }
-
-export const createSnapshot = createApplicationSnapshot;
 
 export async function restoreSnapshot(
   creds: BaserowCredentials,
@@ -4338,7 +4315,7 @@ export async function listWorkspaceInvitations(
 export async function createWorkspaceInvitation(
   creds: BaserowCredentials,
   workspaceId: number,
-  params: { email: string; permissions: string; message?: string },
+  params: { email: string; permissions: string | string[]; message?: string },
 ): Promise<WorkspaceInvitation> {
   return request<WorkspaceInvitation>(
     creds.baseUrl,
@@ -4635,10 +4612,6 @@ export type FieldPermissionDetailed = {
   field_id: number;
   role: string;
   permission: "ALLOW" | "DENY";
-  read_permission_type?: "everyone" | "admins" | "members";
-  write_permission_type?: "everyone" | "admins" | "members";
-  read_allowed_roles?: string[];
-  write_allowed_roles?: string[];
 };
 
 /**
@@ -4648,8 +4621,8 @@ export type FieldPermissionDetailed = {
 export async function getFieldPermissions(
   creds: BaserowCredentials,
   fieldId: number,
-): Promise<FieldPermissionDetailed> {
-  return request<FieldPermissionDetailed>(
+): Promise<FieldPermissionDetailed[]> {
+  return request<FieldPermissionDetailed[]>(
     creds.baseUrl,
     `/api/field-permissions/${fieldId}/`,
     { headers: authHeader(creds) },
@@ -4663,17 +4636,15 @@ export async function getFieldPermissions(
 export async function updateFieldPermissions(
   creds: BaserowCredentials,
   fieldId: number,
-  permissions: FieldPermission[] | Partial<FieldPermissionDetailed>,
-): Promise<FieldPermissionDetailed> {
-  return request<FieldPermissionDetailed>(
+  permissions: FieldPermission[],
+): Promise<FieldPermission[]> {
+  return request<FieldPermission[]>(
     creds.baseUrl,
     `/api/field-permissions/${fieldId}/`,
     {
       method: "PATCH",
       headers: authHeader(creds),
-      body: JSON.stringify(
-        Array.isArray(permissions) ? { permissions } : permissions,
-      ),
+      body: JSON.stringify({ permissions }),
     },
   );
 }

@@ -1470,11 +1470,6 @@ function SortModal({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",

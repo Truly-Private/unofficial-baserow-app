@@ -151,7 +151,7 @@ export default function WebhooksScreen() {
         data={webhooks}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={() => (
+        ListEmptyHeader={() => (
           <View style={styles.empty}>
             <Feather name="zap" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>

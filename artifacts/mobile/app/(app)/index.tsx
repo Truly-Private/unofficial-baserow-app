@@ -222,10 +222,10 @@ export default function WorkspacesScreen() {
   const [importWorkspace, setImportWorkspace] =
     useState<WorkspaceGroup | null>(null);
   const [importFile, setImportFile] = useState<ImportFileDraft | null>(null);
-  const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceGroup | null>(null);
   const [settingsWorkspace, setSettingsWorkspace] = useState<BaserowWorkspace | null>(null);
   const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
   const [renamedWorkspaceName, setRenamedWorkspaceName] = useState("");
+  const [renameWorkspaceId, setRenameWorkspaceId] = useState<number | null>(null);
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces", creds.baseUrl, creds.user.id],
@@ -1014,9 +1014,9 @@ export default function WorkspacesScreen() {
       <WorkspaceSettingsModal
         open={!!settingsWorkspace}
         workspace={settingsWorkspace}
-        colors={colors}
         onClose={() => setSettingsWorkspace(null)}
         onRename={() => {
+          setRenameWorkspaceId(settingsWorkspace?.id ?? null);
           setRenamedWorkspaceName(settingsWorkspace?.name ?? "");
           setIsRenamingWorkspace(true);
           setSettingsWorkspace(null);
@@ -1139,12 +1139,12 @@ export default function WorkspacesScreen() {
         label="Name"
         value={renamedWorkspaceName}
         onChangeText={setRenamedWorkspaceName}
-        onClose={() => setIsRenamingWorkspace(false)}
+        onClose={() => { setIsRenamingWorkspace(false); setRenameWorkspaceId(null); }}
         actionLabel="Rename"
         onSubmit={() => {
-          if (settingsWorkspace) {
+          if (renameWorkspaceId !== null) {
             updateWorkspaceMutation.mutate({
-              id: settingsWorkspace.id,
+              id: renameWorkspaceId,
               name: renamedWorkspaceName,
             });
           }
@@ -1206,109 +1206,6 @@ export default function WorkspacesScreen() {
         }}
       />
     </View>
-  );
-}
-
-function ApplicationSettingsModal({
-  open,
-  application,
-  onClose,
-  onRename,
-  onDelete,
-  onSnapshots,
-  onDuplicate,
-}: {
-  open: boolean;
-  application: BaserowApplication | null;
-  onClose: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  onSnapshots: () => void;
-  onDuplicate?: () => void;
-}) {
-  const colors = useColors();
-
-  if (!application) return null;
-
-  return (
-    <Modal
-      animationType="fade"
-      transparent
-      visible={open}
-      onRequestClose={onClose}
-    >
-      <Pressable
-        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
-        onPress={onClose}
-      >
-        <Pressable
-          onPress={() => {}}
-          style={[
-            styles.promptCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              borderRadius: colors.radius + 8,
-            },
-          ]}
-        >
-          <View style={styles.promptHeader}>
-            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
-              Database Settings
-            </Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <Feather name="x" size={22} color={colors.mutedForeground} />
-            </Pressable>
-          </View>
-
-          <View
-            style={[
-              styles.promptDivider,
-              { backgroundColor: colors.border },
-            ]}
-          />
-
-          <View style={{ gap: 8, paddingVertical: 8 }}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuOption,
-                { backgroundColor: pressed ? colors.muted : "transparent" },
-              ]}
-              onPress={onRename}
-            >
-              <Feather name="edit-2" size={18} color={colors.foreground} />
-              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Rename database</Text>
-            </Pressable>
-
-            {application.type === "database" && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.menuOption,
-                  { backgroundColor: pressed ? colors.muted : "transparent" },
-                ]}
-                onPress={onSnapshots}
-              >
-                <Feather name="camera" size={18} color={colors.foreground} />
-                <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Snapshots</Text>
-              </Pressable>
-            )}
-
-            <View style={[styles.promptDivider, { backgroundColor: colors.border, marginVertical: 4 }]} />
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuOption,
-                { backgroundColor: pressed ? colors.muted : "transparent" },
-              ]}
-              onPress={onDelete}
-            >
-              <Feather name="trash-2" size={18} color={colors.destructive} />
-              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete database</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }
 
@@ -1438,7 +1335,7 @@ function WorkspaceSettingsModal({
 }: {
   open: boolean;
   onClose: () => void;
-  workspace: BaserowWorkspace | null;
+  workspace: BaserowWorkspace;
   onRename: () => void;
   onMembers: () => void;
   onTeams: () => void;
@@ -1504,7 +1401,6 @@ function WorkspaceSettingsModal({
                 { backgroundColor: pressed ? colors.muted : "transparent" },
               ]}
               onPress={() => {
-                if (!workspace) return;
                 onClose();
                 router.push({
                   pathname: "/(app)/workspace/[id]/permissions",
@@ -1582,6 +1478,113 @@ function WorkspaceSettingsModal({
             >
               <Feather name="x-circle" size={18} color={colors.destructive} />
               <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete workspace</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function ApplicationSettingsModal({
+  open,
+  onClose,
+  application,
+  onRename,
+  onDuplicate,
+  onSnapshots,
+  onDelete,
+  colors,
+}: {
+  open: boolean;
+  onClose: () => void;
+  application: BaserowApplication | null;
+  onRename: () => void;
+  onDuplicate: () => void;
+  onSnapshots: () => void;
+  onDelete: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  if (!application) return null;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={open}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={[styles.modalBackdrop, { backgroundColor: "rgba(15, 23, 42, 0.4)" }]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.promptCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius + 8,
+            },
+          ]}
+        >
+          <View style={styles.promptHeader}>
+            <Text style={[styles.promptTitle, { color: colors.foreground }]}>
+              {application.name} Settings
+            </Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <View style={[styles.promptDivider, { backgroundColor: colors.border }]} />
+
+          <View style={{ gap: 8, paddingVertical: 8 }}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onRename}
+            >
+              <Feather name="edit-2" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Rename</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDuplicate}
+            >
+              <Feather name="copy" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Duplicate</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onSnapshots}
+            >
+              <Feather name="clock" size={18} color={colors.foreground} />
+              <Text style={[styles.menuOptionText, { color: colors.foreground }]}>Snapshots</Text>
+            </Pressable>
+
+            <View style={[styles.promptDivider, { backgroundColor: colors.border, marginVertical: 4 }]} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.menuOption,
+                { backgroundColor: pressed ? colors.muted : "transparent" },
+              ]}
+              onPress={onDelete}
+            >
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+              <Text style={[styles.menuOptionText, { color: colors.destructive }]}>Delete</Text>
             </Pressable>
           </View>
         </Pressable>

@@ -118,7 +118,7 @@ export default function AuditLogScreen() {
           data={logs}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
-          ListEmptyComponent={() => (
+          ListEmptyHeader={() => (
             <View style={styles.empty}>
               <Text style={{ color: colors.mutedForeground }}>No logs found for this filter.</Text>
             </View>

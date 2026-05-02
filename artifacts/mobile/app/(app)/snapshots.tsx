@@ -112,6 +112,7 @@ export default function SnapshotsScreen() {
       <Stack.Screen
         options={{
           title: "Snapshots",
+          headerSubtitle: applicationName,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}
@@ -178,9 +179,9 @@ export default function SnapshotsScreen() {
             {snapshots.map((s, idx) => (
               <View key={s.id} style={[ss.row, { borderBottomColor: colors.border, borderBottomWidth: idx === snapshots.length - 1 ? 0 : 0.5 }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[ss.snapshotName, { color: colors.text }]}>{String(s.name ?? "")}</Text>
+                  <Text style={[ss.snapshotName, { color: colors.text }]}>{s.name}</Text>
                   <Text style={[ss.snapshotMeta, { color: colors.mutedForeground }]}>
-                    Created {new Date((s.created_at ?? s.created_on ?? Date.now()) as string | number).toLocaleString()}
+                    Created {new Date(s.created_at).toLocaleString()}
                   </Text>
                 </View>
                 <View style={ss.rowActions}>

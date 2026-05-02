@@ -22,7 +22,7 @@ import {
   getFieldPermissions,
   updateFieldPermissions,
   listWorkspaceMembers,
-  type FieldPermissionDetailed,
+  type FieldPermission,
   type WorkspaceMember,
 } from "@/lib/baserow";
 
@@ -63,7 +63,7 @@ export default function FieldPermissionsScreen() {
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const updatePermissionsMutation = useMutation({
-    mutationFn: (data: Partial<FieldPermissionDetailed>) =>
+    mutationFn: (data: Partial<FieldPermission>) =>
       apiCall((c) => updateFieldPermissions(c, fieldId, data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["field-permissions", fieldId] });
@@ -117,6 +117,7 @@ export default function FieldPermissionsScreen() {
       <Stack.Screen
         options={{
           title: "Field Permissions",
+          headerSubtitle: fieldName,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}

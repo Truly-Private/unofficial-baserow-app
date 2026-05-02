@@ -114,7 +114,7 @@ export default function TeamSubjectsScreen() {
         data={subjects}
         keyExtractor={(item) => `${item.subject_type}-${item.subject_id}`}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
-        ListEmptyComponent={() => (
+        ListEmptyHeader={() => (
           <View style={styles.empty}>
             <Feather name="users" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>

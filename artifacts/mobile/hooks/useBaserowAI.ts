@@ -155,7 +155,7 @@ export function useBaserowAI(workspaceId: number) {
   };
 
   return {
-    chats: chatsQuery.data ?? [],
+    chats: chatsQuery.data?.results ?? [],
     messages,
     isProcessing,
     currentChatUuid,
