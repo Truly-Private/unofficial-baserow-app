@@ -223,6 +223,7 @@ export default function WorkspacesScreen() {
   const [importWorkspace, setImportWorkspace] =
     useState<WorkspaceGroup | null>(null);
   const [importFile, setImportFile] = useState<ImportFileDraft | null>(null);
+  const [menuWorkspace, setMenuWorkspace] = useState<WorkspaceGroup | null>(null);
   const [settingsWorkspace, setSettingsWorkspace] = useState<BaserowWorkspace | null>(null);
   const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
   const [renamedWorkspaceName, setRenamedWorkspaceName] = useState("");
