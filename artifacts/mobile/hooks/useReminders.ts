@@ -81,19 +81,19 @@ export function useReminders() {
         ),
         Calendar.getRemindersAsync(
           calendarIds,
-          Calendar.ReminderStatus.COMPLETE,
+          Calendar.ReminderStatus.COMPLETED,
           recentPast,
           now,
         ),
       ]);
 
       const toItem = (r: Calendar.Reminder): ReminderItem => ({
-        id: r.id,
+        id: r.id ?? "",
         title: r.title ?? "(no title)",
         notes: r.notes ?? null,
         completed: r.completed ?? false,
         dueDate: r.dueDate ? new Date(r.dueDate) : null,
-        calendarId: r.calendarId,
+        calendarId: r.calendarId ?? "",
       });
 
       setReminders([...incomplete.map(toItem), ...completed.map(toItem)]);

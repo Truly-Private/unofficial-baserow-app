@@ -464,7 +464,7 @@ export default function TableScreen() {
         options={{
           title: tableName,
           headerRight: () => (
-            <View style={styles.headerActions}>
+            <View style={styles.headerRight}>
               <Pressable
                 onPress={() => setSelectionMode((prev) => !prev)}
                 hitSlop={10}

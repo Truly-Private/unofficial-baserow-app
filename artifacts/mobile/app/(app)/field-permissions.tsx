@@ -77,12 +77,13 @@ export default function FieldPermissionsScreen() {
   const toggleMember = (memberId: number, type: "read" | "write") => {
     if (!permissionsQuery.data) return;
     
-    const current = permissionsQuery.data[type === "read" ? "read_allowed_roles" : "write_allowed_roles"] || [];
+    const data: any = (Array.isArray(permissionsQuery.data) ? permissionsQuery.data[0] : permissionsQuery.data) ?? {};
+    const current: string[] = data[type === "read" ? "read_allowed_roles" : "write_allowed_roles"] || [];
     const role = `member:${memberId}`;
     
     let next: string[];
     if (current.includes(role)) {
-      next = current.filter(r => r !== role);
+      next = current.filter((r: string) => r !== role);
     } else {
       next = [...current, role];
     }
@@ -103,7 +104,7 @@ export default function FieldPermissionsScreen() {
   if (permissionsQuery.isLoading || membersQuery.isLoading) return <LoadingState />;
   if (permissionsQuery.isError) return <ErrorState title="Error" message="Could not load permissions" />;
 
-  const permissions = permissionsQuery.data!;
+  const permissions: any = (Array.isArray(permissionsQuery.data) ? permissionsQuery.data[0] : permissionsQuery.data) ?? {};
   const members = membersQuery.data || [];
   
   const currentType = activeTab === "read" ? permissions.read_permission_type : permissions.write_permission_type;
@@ -116,8 +117,7 @@ export default function FieldPermissionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: "Field Permissions",
-          headerSubtitle: fieldName,
+          title: `Field Permissions — ${fieldName}`,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}

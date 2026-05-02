@@ -52,8 +52,7 @@ export default function RowHistoryScreen() {
     <View style={[hs.root, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: "Row History",
-          headerSubtitle: `${tableName} · Row #${rowId}`,
+          title: `Row History — ${tableName} · #${rowId}`,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}

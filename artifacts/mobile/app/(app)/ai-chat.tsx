@@ -172,7 +172,7 @@ export default function AIChatScreen() {
                   {chat.title || "Untitled Chat"}
                 </Text>
                 <Text style={[styles.sessionDate, { color: colors.mutedForeground }]}>
-                  {new Date(chat.created_on).toLocaleDateString()}
+                  {chat.created_on ? new Date(chat.created_on).toLocaleDateString() : ""}
                 </Text>
               </View>
               {currentChatUuid === chat.uuid && (

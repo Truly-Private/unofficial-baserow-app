@@ -1049,6 +1049,7 @@ export default function WorkspacesScreen() {
       <WorkspaceSettingsModal
         open={!!settingsWorkspace}
         workspace={settingsWorkspace}
+        colors={colors}
         onClose={() => setSettingsWorkspace(null)}
         onRename={() => {
           setRenameWorkspaceId(settingsWorkspace?.id ?? null);
@@ -1129,6 +1130,7 @@ export default function WorkspacesScreen() {
       <ApplicationSettingsModal
         open={!!settingsApp}
         application={settingsApp}
+        colors={colors}
         onClose={() => setSettingsApp(null)}
         onRename={() => {
           setRenamedAppName(settingsApp?.name ?? "");
@@ -1370,7 +1372,7 @@ function WorkspaceSettingsModal({
 }: {
   open: boolean;
   onClose: () => void;
-  workspace: BaserowWorkspace;
+  workspace: BaserowWorkspace | null;
   onRename: () => void;
   onMembers: () => void;
   onTeams: () => void;
@@ -1380,6 +1382,7 @@ function WorkspaceSettingsModal({
   onDelete: () => void;
   colors: ReturnType<typeof useColors>;
 }) {
+  if (!workspace) return null;
   return (
     <Modal
       animationType="fade"

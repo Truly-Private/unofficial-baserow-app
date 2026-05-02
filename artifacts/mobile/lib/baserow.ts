@@ -85,6 +85,10 @@ export type BaserowJob = {
   resource?: BaserowImportResource;
   workspace?: BaserowWorkspace;
   template?: BaserowTemplate;
+  url?: string;
+  exported_file_name?: string;
+  error?: string;
+  progress?: number;
 };
 
 export type BaserowTable = {
@@ -441,6 +445,7 @@ export type BaserowApplicationUserSource = {
 
 export type BaserowApplicationSnapshot = {
   id: number;
+  name?: string;
   created_on?: string;
   created_by_id?: number;
   [key: string]: unknown;
@@ -1109,6 +1114,7 @@ export async function listApplicationSnapshots(
 export async function createApplicationSnapshot(
   creds: BaserowCredentials,
   applicationId: number,
+  body?: { name?: string },
 ): Promise<BaserowApplicationSnapshot> {
   return request<BaserowApplicationSnapshot>(
     creds.baseUrl,
@@ -1116,6 +1122,7 @@ export async function createApplicationSnapshot(
     {
       method: "POST",
       headers: authHeader(creds),
+      body: body ? JSON.stringify(body) : undefined,
     },
   );
 }
@@ -4642,6 +4649,10 @@ export type FieldPermissionDetailed = {
   field_id: number;
   role: string;
   permission: "ALLOW" | "DENY";
+  read_permission_type?: "everyone" | "admins" | "members" | string;
+  write_permission_type?: "everyone" | "admins" | "members" | string;
+  read_allowed_roles?: string[];
+  write_allowed_roles?: string[];
 };
 
 /**
@@ -4666,7 +4677,7 @@ export async function getFieldPermissions(
 export async function updateFieldPermissions(
   creds: BaserowCredentials,
   fieldId: number,
-  permissions: FieldPermission[],
+  permissions: FieldPermission[] | Partial<FieldPermission> | Record<string, unknown>,
 ): Promise<FieldPermission[]> {
   return request<FieldPermission[]>(
     creds.baseUrl,
@@ -4674,7 +4685,7 @@ export async function updateFieldPermissions(
     {
       method: "PATCH",
       headers: authHeader(creds),
-      body: JSON.stringify({ permissions }),
+      body: JSON.stringify(Array.isArray(permissions) ? { permissions } : permissions),
     },
   );
 }

@@ -279,14 +279,14 @@ export default function SettingsScreen() {
   // ─── Mutations ──────────────────────────────────────────────────────────────
 
   const updateNameMutation = useMutation({
-    mutationFn: () => apiCall((c) => updateUserAccount(c, { first_name: firstName.trim() })),
+    mutationFn: (data?: { first_name?: string; language?: string; notification_email_frequency?: "instant" | "daily" | "weekly" | "never" }) =>
+      apiCall((c) => updateUserAccount(c, data ?? { first_name: firstName.trim() })),
     onSuccess: (updated) => {
-      updateUser?.({ ...creds.user, first_name: updated.first_name });
+      updateUser?.({ ...creds.user, ...updated });
       queryClient.invalidateQueries({ queryKey: ["user"] });
       resetForms();
-      Alert.alert("Saved", "Your name has been updated.");
     },
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not update name."),
+    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not update settings."),
   });
 
   const changePasswordMutation = useMutation({

@@ -20,8 +20,8 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
-  listSnapshots,
-  createSnapshot,
+  listApplicationSnapshots as listSnapshots,
+  createApplicationSnapshot as createSnapshot,
   restoreSnapshot,
   deleteSnapshot,
   type Snapshot,
@@ -105,14 +105,13 @@ export default function SnapshotsScreen() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const snapshots = snapshotsQuery.data ?? [];
+  const snapshots: Snapshot[] = snapshotsQuery.data ?? [];
 
   return (
     <View style={[ss.root, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: "Snapshots",
-          headerSubtitle: applicationName,
+          title: `Snapshots — ${applicationName}`,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}
@@ -176,12 +175,12 @@ export default function SnapshotsScreen() {
           </View>
         ) : (
           <View style={[ss.list, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-            {snapshots.map((s, idx) => (
+            {snapshots.map((s: Snapshot, idx: number) => (
               <View key={s.id} style={[ss.row, { borderBottomColor: colors.border, borderBottomWidth: idx === snapshots.length - 1 ? 0 : 0.5 }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[ss.snapshotName, { color: colors.text }]}>{s.name}</Text>
+                  <Text style={[ss.snapshotName, { color: colors.text }]}>{s.name ?? ""}</Text>
                   <Text style={[ss.snapshotMeta, { color: colors.mutedForeground }]}>
-                    Created {new Date(s.created_at).toLocaleString()}
+                    Created {s.created_on ? new Date(s.created_on).toLocaleString() : ""}
                   </Text>
                 </View>
                 <View style={ss.rowActions}>
