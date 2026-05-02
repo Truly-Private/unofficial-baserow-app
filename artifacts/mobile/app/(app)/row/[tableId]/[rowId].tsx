@@ -29,6 +29,7 @@ import { useWebInsets } from "@/hooks/useWebInsets";
 import {
   BaserowApiError,
   deleteRow,
+  formatFieldDisplay,
   getRow,
   listFields,
   preparePayload,
@@ -241,19 +242,33 @@ export default function EditRowScreen() {
             }}
             keyboardShouldPersistTaps="handled"
           >
-            {fields.map((f) => (
-              <FieldInput
-                key={f.id}
-                field={f}
-                value={values[f.name]}
-                reminderKey={`${tableId}_${rowId}_${f.id}`}
-                onChange={(next) => {
-                  setValues((prev) => ({ ...prev, [f.name]: next }));
-                  setDirty(true);
-                  setSaveError(null);
-                }}
-              />
-            ))}
+            {(() => {
+              const primary = fields.find((f) => f.primary) ?? fields[0];
+              const reminderTitle = primary
+                ? formatFieldDisplay(primary, values[primary.name])
+                : "";
+              const notesField = fields.find(
+                (f) => f.type === "long_text" && !f.primary,
+              );
+              const reminderNotes = notesField
+                ? formatFieldDisplay(notesField, values[notesField.name])
+                : "";
+              return fields.map((f) => (
+                <FieldInput
+                  key={f.id}
+                  field={f}
+                  value={values[f.name]}
+                  reminderKey={`${tableId}_${rowId}_${f.id}`}
+                  reminderTitle={reminderTitle}
+                  reminderNotes={reminderNotes}
+                  onChange={(next) => {
+                    setValues((prev) => ({ ...prev, [f.name]: next }));
+                    setDirty(true);
+                    setSaveError(null);
+                  }}
+                />
+              ));
+            })()}
             {saveError ? (
               <View
                 style={[

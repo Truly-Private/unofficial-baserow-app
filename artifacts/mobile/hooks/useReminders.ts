@@ -190,7 +190,7 @@ export function useRowReminder(key: string | undefined) {
   }, [key, isSupported]);
 
   const saveReminder = useCallback(
-    async (title: string, dueDate: Date): Promise<void> => {
+    async (title: string, dueDate: Date, notes?: string): Promise<void> => {
       if (!isSupported || !key) return;
 
       const { status } = await Calendar.requestRemindersPermissionsAsync();
@@ -219,6 +219,7 @@ export function useRowReminder(key: string | undefined) {
         try {
           await Calendar.updateReminderAsync(existingId, {
             title,
+            notes: notes ?? undefined,
             dueDate,
             completed: false,
           });
@@ -235,6 +236,7 @@ export function useRowReminder(key: string | undefined) {
 
       const reminderId = await Calendar.createReminderAsync(remList.id, {
         title,
+        notes: notes ?? undefined,
         dueDate,
         completed: false,
       });
