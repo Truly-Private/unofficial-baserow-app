@@ -566,6 +566,7 @@ export default function TableScreen() {
               >
                 <Feather name="plus" size={22} color={colors.primary} />
               </Pressable>
+              </View>
             </View>
           ),
         }}
@@ -1469,6 +1470,11 @@ function SortModal({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",

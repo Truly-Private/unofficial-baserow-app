@@ -111,7 +111,7 @@ export default function TablePermissionsScreen() {
             </Text>
           </View>
         )}
-        ListEmptyHeader={() => (
+        ListEmptyComponent={() => (
           <View style={styles.empty}>
             <Feather name="shield" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>

@@ -53,7 +53,6 @@ export default function RowHistoryScreen() {
       <Stack.Screen
         options={{
           title: "Row History",
-          headerSubtitle: `${tableName} · Row #${rowId}`,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
         }}

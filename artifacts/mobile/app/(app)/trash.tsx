@@ -114,6 +114,7 @@ export default function TrashScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webInsets = useWebInsets();
+  const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16);
   const creds = useCreds();
   const { apiCall } = useAuth();
   const queryClient = useQueryClient();

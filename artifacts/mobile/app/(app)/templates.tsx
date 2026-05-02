@@ -55,7 +55,7 @@ export default function TemplatesScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       Alert.alert("Success", "Template installation started. It will appear in your dashboard shortly.");
-      router.replace("/(app)/");
+      router.replace("/(app)" as any);
     },
     onError: (err) => Alert.alert("Error", err instanceof Error ? err.message : "Failed to install template"),
   });
