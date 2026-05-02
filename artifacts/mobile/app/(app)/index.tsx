@@ -225,6 +225,7 @@ export default function WorkspacesScreen() {
   const [settingsWorkspace, setSettingsWorkspace] = useState<BaserowWorkspace | null>(null);
   const [isRenamingWorkspace, setIsRenamingWorkspace] = useState(false);
   const [renamedWorkspaceName, setRenamedWorkspaceName] = useState("");
+  const [renameWorkspaceId, setRenameWorkspaceId] = useState<number | null>(null);
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces", creds.baseUrl, creds.user.id],
@@ -1015,6 +1016,7 @@ export default function WorkspacesScreen() {
         workspace={settingsWorkspace}
         onClose={() => setSettingsWorkspace(null)}
         onRename={() => {
+          setRenameWorkspaceId(settingsWorkspace?.id ?? null);
           setRenamedWorkspaceName(settingsWorkspace?.name ?? "");
           setIsRenamingWorkspace(true);
           setSettingsWorkspace(null);
@@ -1137,12 +1139,12 @@ export default function WorkspacesScreen() {
         label="Name"
         value={renamedWorkspaceName}
         onChangeText={setRenamedWorkspaceName}
-        onClose={() => setIsRenamingWorkspace(false)}
+        onClose={() => { setIsRenamingWorkspace(false); setRenameWorkspaceId(null); }}
         actionLabel="Rename"
         onSubmit={() => {
-          if (settingsWorkspace) {
+          if (renameWorkspaceId !== null) {
             updateWorkspaceMutation.mutate({
-              id: settingsWorkspace.id,
+              id: renameWorkspaceId,
               name: renamedWorkspaceName,
             });
           }
