@@ -102,12 +102,16 @@ export default function ExportScreen() {
     queryKey: ["job", creds.baseUrl, jobId],
     queryFn: () => apiCall((c) => getJob(c, jobId!)),
     enabled: !!jobId,
-    refetchInterval: (data) => {
-      const job = data?.state?.data as BaserowJob | undefined;
-      if (job?.state === "failed" || job?.state === "finished") return false;
+    refetchInterval: (query) => {
+      const job = query.state.data as BaserowJob | undefined;
+      if (job?.state === "failed" || job?.state === "finished" || job?.state === "cancelled") {
+        return false;
+      }
       return 2000;
     },
   });
+
+  const isPremiumOnly = exportType === "excel" || exportType === "json";
 
   const exportMutation = useMutation({
     mutationFn: () => {
@@ -121,11 +125,20 @@ export default function ExportScreen() {
       return createExportJob(creds, tableId, options);
     },
     onSuccess: (job: BaserowJob) => setJobId(job.id),
-    onError: (err) =>
-      Alert.alert(
-        "Could not start export",
-        err instanceof Error ? err.message : "Failed to start export.",
-      ),
+    onError: (err) => {
+      const raw = err instanceof Error ? err.message : "Failed to start export.";
+      const isPremium =
+        /ERROR_FEATURE_NOT_AVAILABLE/i.test(raw) ||
+        /does not have access to these features/i.test(raw);
+      if (isPremium && isPremiumOnly) {
+        Alert.alert(
+          "Premium feature",
+          `${exportType === "excel" ? "Excel" : "JSON"} export requires a Baserow Premium license. CSV export is available on the free plan.`,
+        );
+      } else {
+        Alert.alert("Could not start export", raw);
+      }
+    },
   });
 
   const job = jobQuery.data as BaserowJob | undefined;
@@ -174,7 +187,9 @@ export default function ExportScreen() {
                 },
               ]}
             >
-              <Text style={{ color: exportType === "excel" ? colors.primaryForeground : colors.foreground }}>Excel (XLSX)</Text>
+              <Text style={{ color: exportType === "excel" ? colors.primaryForeground : colors.foreground }}>
+                Excel (XLSX)  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>· Premium</Text>
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => setExportType("json")}
@@ -186,7 +201,9 @@ export default function ExportScreen() {
                 },
               ]}
             >
-              <Text style={{ color: exportType === "json" ? colors.primaryForeground : colors.foreground }}>JSON</Text>
+              <Text style={{ color: exportType === "json" ? colors.primaryForeground : colors.foreground }}>
+                JSON  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>· Premium</Text>
+              </Text>
             </Pressable>
 
             <Button
@@ -209,14 +226,18 @@ export default function ExportScreen() {
               <View style={styles.failed}>
                 <Feather name="x-circle" size={48} color={colors.destructive} />
                 <Text style={[styles.statusText, { color: colors.foreground }]}>Export Failed</Text>
-                <Text style={[styles.errorText, { color: colors.mutedForeground }]}>{job.error || "Unknown error"}</Text>
+                <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+                  {job.human_readable_error || job.error || "Unknown error"}
+                </Text>
                 <Button title="Try Again" onPress={() => setJobId(null)} />
               </View>
             ) : (
               <View style={styles.progress}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={[styles.statusText, { color: colors.foreground }]}>
-                  {job?.state === "pending" ? "Queued..." : `Processing... ${job?.progress || 0}%`}
+                  {job?.state === "pending"
+                    ? "Queued..."
+                    : `Processing... ${Math.round(job?.progress_percentage ?? job?.progress ?? 0)}%`}
                 </Text>
               </View>
             )}
