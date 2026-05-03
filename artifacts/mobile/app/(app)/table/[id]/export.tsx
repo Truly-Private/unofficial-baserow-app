@@ -19,21 +19,71 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import {
   getJob,
+  type BaserowCredentials,
   type BaserowJob,
 } from "@/lib/baserow";
 
-// Note: createTableExportJob would need to be added to baserow.ts if missing
-// For now we'll assume it exists or use a generic request
-async function createExportJob(creds: any, tableId: number, options: any) {
-  const response = await fetch(`${creds.baseUrl}/api/database/export/table/${tableId}/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `JWT ${creds.token}`,
+type ExporterType = "csv" | "excel" | "json";
+
+type ExportOptions = {
+  exporter_type: ExporterType;
+  export_charset?: string;
+  csv_column_separator?: string;
+  csv_include_header?: boolean;
+  csv_first_row_header?: boolean;
+};
+
+async function createExportJob(
+  creds: BaserowCredentials,
+  tableId: number,
+  options: ExportOptions,
+): Promise<BaserowJob> {
+  const response = await fetch(
+    `${creds.baseUrl}/api/database/export/table/${tableId}/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `JWT ${creds.jwt}`,
+      },
+      body: JSON.stringify(options),
     },
-    body: JSON.stringify(options),
-  });
-  if (!response.ok) throw new Error("Failed to start export job");
+  );
+  if (!response.ok) {
+    let message = `Failed to start export job (${response.status}).`;
+    try {
+      const data = await response.json();
+      if (data && typeof data === "object") {
+        const d = data as Record<string, unknown>;
+        if (typeof d.detail === "string") {
+          message = d.detail;
+        } else if (d.detail && typeof d.detail === "object") {
+          const fieldErrors = Object.entries(
+            d.detail as Record<string, unknown>,
+          )
+            .map(([field, errs]) => {
+              const messages = Array.isArray(errs)
+                ? errs
+                    .map((e) =>
+                      e && typeof e === "object" && "error" in e
+                        ? String((e as { error: unknown }).error)
+                        : String(e),
+                    )
+                    .join(", ")
+                : String(errs);
+              return `${field}: ${messages}`;
+            })
+            .join("\n");
+          if (fieldErrors) message = fieldErrors;
+        } else if (typeof d.error === "string") {
+          message = d.error;
+        }
+      }
+    } catch {
+      // ignore JSON parse failures
+    }
+    throw new Error(message);
+  }
   return response.json();
 }
 
@@ -46,7 +96,7 @@ export default function ExportScreen() {
   const tableName = params.tableName || "Table";
 
   const [jobId, setJobId] = useState<number | null>(null);
-  const [exportType, setExportType] = useState<"csv" | "xlsx">("csv");
+  const [exportType, setExportType] = useState<ExporterType>("csv");
 
   const jobQuery = useQuery({
     queryKey: ["job", creds.baseUrl, jobId],
@@ -60,9 +110,22 @@ export default function ExportScreen() {
   });
 
   const exportMutation = useMutation({
-    mutationFn: () => createExportJob(creds, tableId, { export_charset: "utf-8", exporter_type: exportType }),
+    mutationFn: () => {
+      const options: ExportOptions = { exporter_type: exportType };
+      if (exportType === "csv") {
+        options.export_charset = "utf-8";
+        options.csv_column_separator = ",";
+        options.csv_include_header = true;
+        options.csv_first_row_header = true;
+      }
+      return createExportJob(creds, tableId, options);
+    },
     onSuccess: (job: BaserowJob) => setJobId(job.id),
-    onError: (err) => Alert.alert("Error", err instanceof Error ? err.message : "Failed to start export"),
+    onError: (err) =>
+      Alert.alert(
+        "Could not start export",
+        err instanceof Error ? err.message : "Failed to start export.",
+      ),
   });
 
   const job = jobQuery.data as BaserowJob | undefined;
@@ -102,16 +165,28 @@ export default function ExportScreen() {
               <Text style={{ color: exportType === "csv" ? colors.primaryForeground : colors.foreground }}>CSV</Text>
             </Pressable>
             <Pressable
-              onPress={() => setExportType("xlsx")}
+              onPress={() => setExportType("excel")}
               style={[
                 styles.option,
                 {
-                  backgroundColor: exportType === "xlsx" ? colors.primary : colors.surface,
+                  backgroundColor: exportType === "excel" ? colors.primary : colors.surface,
                   borderColor: colors.border,
                 },
               ]}
             >
-              <Text style={{ color: exportType === "xlsx" ? colors.primaryForeground : colors.foreground }}>Excel (XLSX)</Text>
+              <Text style={{ color: exportType === "excel" ? colors.primaryForeground : colors.foreground }}>Excel (XLSX)</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setExportType("json")}
+              style={[
+                styles.option,
+                {
+                  backgroundColor: exportType === "json" ? colors.primary : colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={{ color: exportType === "json" ? colors.primaryForeground : colors.foreground }}>JSON</Text>
             </Pressable>
 
             <Button
