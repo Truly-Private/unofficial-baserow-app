@@ -186,12 +186,27 @@ function CreateWebhookModal({
   const creds = useCreds();
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(["row.created"]);
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(["rows.created"]);
   const [includeRowData, setIncludeRowData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCreate = async () => {
-    if (!name.trim() || !url.trim()) return;
+    const trimmedName = name.trim();
+    const trimmedUrl = url.trim();
+    if (!trimmedName || !trimmedUrl) return;
+
+    if (!/^https?:\/\/.+/i.test(trimmedUrl)) {
+      Alert.alert(
+        "Invalid URL",
+        "The webhook URL must start with http:// or https://, for example https://example.com/webhook.",
+      );
+      return;
+    }
+
+    if (selectedEvents.length === 0) {
+      Alert.alert("Pick at least one event", "Select one or more events that should trigger this webhook.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -204,11 +219,14 @@ function CreateWebhookModal({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: name.trim(),
-            url: url.trim(),
+            name: trimmedName,
+            url: trimmedUrl,
+            request_method: "POST",
             events: selectedEvents,
+            event_types: selectedEvents,
             is_active: true,
-            include_row_data: includeRowData,
+            use_user_field_names: true,
+            include_all_events: false,
           }),
         }
       );
@@ -216,13 +234,48 @@ function CreateWebhookModal({
       if (response.ok) {
         setName("");
         setUrl("");
-        setSelectedEvents(["row.created"]);
+        setSelectedEvents(["rows.created"]);
         onCreated();
       } else {
-        Alert.alert("Error", "Failed to create webhook");
+        let detail = `Failed to create webhook (${response.status}).`;
+        try {
+          const data = await response.json();
+          if (data && typeof data === "object") {
+            const d = data as Record<string, unknown>;
+            if (typeof d.detail === "string") {
+              detail = d.detail;
+            } else if (d.detail && typeof d.detail === "object") {
+              const fieldErrors = Object.entries(
+                d.detail as Record<string, unknown>,
+              )
+                .map(([field, errs]) => {
+                  const messages = Array.isArray(errs)
+                    ? errs
+                        .map((e) =>
+                          e && typeof e === "object" && "error" in e
+                            ? String((e as { error: unknown }).error)
+                            : String(e),
+                        )
+                        .join(", ")
+                    : String(errs);
+                  return `${field}: ${messages}`;
+                })
+                .join("\n");
+              if (fieldErrors) detail = fieldErrors;
+            } else if (typeof d.error === "string") {
+              detail = d.error;
+            }
+          }
+        } catch {
+          // ignore JSON parse failures and use the default detail
+        }
+        Alert.alert("Could not create webhook", detail);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to create webhook");
+      Alert.alert(
+        "Could not create webhook",
+        error instanceof Error ? error.message : "Network error.",
+      );
     } finally {
       setIsSubmitting(false);
     }

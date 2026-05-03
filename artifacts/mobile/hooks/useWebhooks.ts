@@ -50,9 +50,6 @@ export type BaserowWebhookLog = {
 };
 
 const WEBHOOK_EVENTS = [
-  { value: "row.created", label: "Row Created" },
-  { value: "row.updated", label: "Row Updated" },
-  { value: "row.deleted", label: "Row Deleted" },
   { value: "rows.created", label: "Rows Created" },
   { value: "rows.updated", label: "Rows Updated" },
   { value: "rows.deleted", label: "Rows Deleted" },
