@@ -4352,15 +4352,26 @@ export async function listWorkspaceInvitations(
 export async function createWorkspaceInvitation(
   creds: BaserowCredentials,
   workspaceId: number,
-  params: { email: string; permissions: string | string[]; message?: string },
+  params: {
+    email: string;
+    permissions: "ADMIN" | "MEMBER";
+    message?: string;
+    base_url?: string;
+  },
 ): Promise<WorkspaceInvitation> {
+  const body = {
+    email: params.email,
+    permissions: params.permissions,
+    message: params.message ?? "",
+    base_url: params.base_url ?? `${creds.baseUrl.replace(/\/+$/, "")}/invite`,
+  };
   return request<WorkspaceInvitation>(
     creds.baseUrl,
     `/api/workspaces/invitations/workspace/${workspaceId}/`,
     {
       method: "POST",
       headers: authHeader(creds),
-      body: JSON.stringify(params),
+      body: JSON.stringify(body),
     },
   );
 }

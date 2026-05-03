@@ -41,6 +41,7 @@ import { useAuth, useCreds } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useWebInsets } from "@/hooks/useWebInsets";
 import {
+  BaserowApiError,
   createWorkspaceInvitation,
   deleteWorkspaceInvitation,
   listWorkspaceInvitations,
@@ -55,6 +56,38 @@ import {
 
 const ROLES = ["ADMIN", "MEMBER", "VIEWER"] as const;
 type Role = (typeof ROLES)[number];
+
+// Baserow workspace invitations only accept ADMIN or MEMBER.
+const INVITE_ROLES = ["ADMIN", "MEMBER"] as const;
+type InviteRole = (typeof INVITE_ROLES)[number];
+
+function describeApiError(e: unknown, fallback: string): string {
+  if (e instanceof BaserowApiError) {
+    const data = e.data as { error?: unknown; detail?: unknown } | null;
+    if (data && typeof data === "object") {
+      if (data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)) {
+        const parts: string[] = [];
+        for (const [field, errs] of Object.entries(data.detail as Record<string, unknown>)) {
+          const msgs = Array.isArray(errs)
+            ? errs
+                .map((x) =>
+                  x && typeof x === "object" && "error" in x
+                    ? String((x as { error: unknown }).error)
+                    : String(x),
+                )
+                .join(", ")
+            : String(errs);
+          parts.push(`${field}: ${msgs}`);
+        }
+        if (parts.length) return parts.join("\n");
+      }
+      if (typeof data.detail === "string") return data.detail;
+      if (typeof data.error === "string") return data.error;
+    }
+    return e.message || fallback;
+  }
+  return e instanceof Error ? e.message : fallback;
+}
 
 const ROLE_COLORS: Record<Role, string> = {
   ADMIN: "#ef4444",
@@ -75,14 +108,16 @@ function RolePicker({
   current,
   onSelect,
   colors,
+  roles = ROLES,
 }: {
   current: string;
   onSelect: (r: Role) => void;
   colors: ReturnType<typeof useColors>;
+  roles?: readonly Role[];
 }) {
   return (
     <View style={[rs.rolePicker, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-      {ROLES.map((r) => (
+      {roles.map((r) => (
         <Pressable
           key={r}
           style={[rs.roleOption, { backgroundColor: r === current ? ROLE_COLORS[r] + "22" : "transparent" }]}
@@ -210,7 +245,7 @@ export default function WorkspaceMembersScreen() {
 
   const [activeTab, setActiveTab] = useState<Tab>("members");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<Role>("MEMBER");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("MEMBER");
   const [showInviteForm, setShowInviteForm] = useState(false);
 
   const bottomPad = Math.max(insets.bottom, webInsets.bottom, 16);
@@ -236,31 +271,41 @@ export default function WorkspaceMembersScreen() {
     mutationFn: ({ memberId, role }: { memberId: number; role: Role }) =>
       apiCall((c) => updateWorkspaceMember(c, memberId, { permissions: role })),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] }),
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not update role."),
+    onError: (e) => Alert.alert("Could not update role", describeApiError(e, "Could not update role.")),
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: (memberId: number) => apiCall((c) => removeWorkspaceMember(c, memberId)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] }),
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not remove member."),
+    onError: (e) => Alert.alert("Could not remove member", describeApiError(e, "Could not remove member.")),
   });
 
   const sendInviteMutation = useMutation({
-    mutationFn: () =>
-      apiCall((c) => createWorkspaceInvitation(c, workspaceId, { email: inviteEmail.trim(), permissions: [inviteRole] })),
+    mutationFn: () => {
+      const email = inviteEmail.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return Promise.reject(new Error("Please enter a valid email address."));
+      }
+      return apiCall((c) =>
+        createWorkspaceInvitation(c, workspaceId, {
+          email,
+          permissions: inviteRole,
+        }),
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspace-invitations", workspaceId] });
       setInviteEmail("");
       setInviteRole("MEMBER");
       setShowInviteForm(false);
     },
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not send invitation."),
+    onError: (e) => Alert.alert("Could not send invitation", describeApiError(e, "Could not send invitation.")),
   });
 
   const revokeInviteMutation = useMutation({
     mutationFn: (inviteId: number) => apiCall((c) => deleteWorkspaceInvitation(c, inviteId)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workspace-invitations", workspaceId] }),
-    onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Could not revoke invitation."),
+    onError: (e) => Alert.alert("Could not revoke invitation", describeApiError(e, "Could not revoke invitation.")),
   });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
@@ -380,8 +425,9 @@ export default function WorkspaceMembersScreen() {
                     <Text style={[rs.inviteRoleLabel, { color: colors.mutedForeground }]}>ROLE</Text>
                     <RolePicker
                       current={inviteRole}
-                      onSelect={setInviteRole}
+                      onSelect={(r) => setInviteRole(r as InviteRole)}
                       colors={colors}
+                      roles={INVITE_ROLES}
                     />
                     <View style={rs.inviteFormBtns}>
                       <Pressable
